@@ -486,7 +486,7 @@ config RTC
 
 config TPM
 	bool
-	default n
+	default y
 	select LPC_TPM if MAINBOARD_HAS_LPC_TPM
 	select I2C_TPM if !MAINBOARD_HAS_LPC_TPM && !SPI_TPM
 	help
