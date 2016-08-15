@@ -29,6 +29,7 @@
 #include <device/device.h>
 #include <halt.h>
 #include <tpm.h>
+#include <tpm_lite/tlcl.h>
 #include <northbridge/intel/sandybridge/chip.h>
 #include "southbridge/intel/bd82x6x/pch.h"
 #include <southbridge/intel/common/gpio.h>
@@ -62,6 +63,18 @@ void mainboard_romstage_entry(unsigned long bist)
 		enable_lapic();
 
 	pch_enable_lpc();
+
+	if (IS_ENABLED(CONFIG_LPC_TPM)) {
+		// we don't know if we are coming out of a resume
+		// at this point, but want to setup the tpm ASAP
+		init_tpm(0);
+		const void * const bootblock = (const void*) 0xFFFFF800;
+		const unsigned bootblock_size = 0x800;
+		tlcl_measure(0, bootblock, bootblock_size);
+
+		extern char _romstage, _eromstage;
+		tlcl_measure(1, &_romstage, &_eromstage - &_romstage);
+	}
 
 	/* Enable GPIOs */
 	pci_write_config32(PCH_LPC_DEV, GPIO_BASE, DEFAULT_GPIOBASE|1);
@@ -115,10 +128,6 @@ void mainboard_romstage_entry(unsigned long bist)
 	post_code(0x3d);
 
 	northbridge_romstage_finalize(s3resume);
-
-	if (IS_ENABLED(CONFIG_LPC_TPM)) {
-		init_tpm(s3resume);
-	}
 
 	post_code(0x3f);
 }
