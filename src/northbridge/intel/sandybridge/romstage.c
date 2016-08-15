@@ -30,6 +30,7 @@
 #include <halt.h>
 #include <tpm.h>
 #include <tpm_lite/tlcl.h>
+#include <program_loading.h>
 #include <northbridge/intel/sandybridge/chip.h>
 #include "southbridge/intel/bd82x6x/pch.h"
 #include <southbridge/intel/common/gpio.h>
@@ -131,3 +132,10 @@ void mainboard_romstage_entry(unsigned long bist)
 
 	post_code(0x3f);
 }
+
+
+void platform_segment_loaded(uintptr_t start, size_t size, int flags)
+{
+	tlcl_measure(2, (const void*) start, size);
+}
+

@@ -62,6 +62,8 @@ libverstage-$(CONFIG_TPM2) += tpm2_tlcl.c
 # why is it LPC_TPM instead of TPM on the x230?
 romstage-$(CONFIG_LPC_TPM) += tlcl.c
 romstage-$(CONFIG_LPC_TPM) += sha1.c
+ramstage-$(CONFIG_LPC_TPM) += tlcl.c
+ramstage-$(CONFIG_LPC_TPM) += sha1.c
 endif
 $(info yes)
 
