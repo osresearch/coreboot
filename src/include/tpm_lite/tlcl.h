@@ -147,6 +147,11 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
                      uint8_t *out_digest);
 
 /**
+ * Perform a SHA1 hash on a region and extend a PCR with the hash.
+ */
+uint32_t tlcl_measure(int pcr_num, const void * start, size_t len);
+
+/**
  * Get the entire set of permanent flags.
  */
 uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);

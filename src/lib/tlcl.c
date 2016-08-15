@@ -18,6 +18,7 @@
 #include <string.h>
 #include <tpm_lite/tlcl.h>
 #include <tpm.h>
+#include <sha1.h>
 #include <vb2_api.h>
 #include "tlcl_internal.h"
 #include "tlcl_structures.h"
@@ -325,3 +326,21 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t* in_digest,
 		       kPcrDigestLength);
 	return result;
 }
+
+
+uint32_t tlcl_measure(int pcr_num, const void * start, size_t len)
+{
+	VBDEBUG("TPM: pcr %d measure %p @ %zu: ", pcr_num, start, len);
+
+	struct sha1_ctx sha;
+	sha1_init(&sha);
+	sha1_update(&sha, start, len);
+
+	const uint8_t * hash = sha1_final(&sha);
+	for(unsigned i = 0 ; i < SHA1_DIGEST_SIZE ; i++)
+		VBDEBUG("%02x", hash[i]);
+	VBDEBUG("\n");
+
+	return tlcl_extend(pcr_num, hash, NULL);
+}
+
