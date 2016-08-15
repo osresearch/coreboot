@@ -69,8 +69,14 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
 	if (size != NULL)
 		*size = fsize;
 
-	return rdev_mmap(&fh.data, 0, fsize);
+	void * buffer = rdev_mmap(&fh.data, 0, fsize);
+
+	prog_segment_loaded((uintptr_t)buffer, fsize, SEG_FINAL);
+
+	return buffer;
 }
+
+
 
 size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
 	size_t in_size, void *buffer, size_t buffer_size, uint32_t compression)
@@ -81,7 +87,8 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
 	case CBFS_COMPRESS_NONE:
 		if (rdev_readat(rdev, buffer, offset, in_size) != in_size)
 			return 0;
-		return in_size;
+		out_size = in_size;
+		break;
 
 	case CBFS_COMPRESS_LZ4:
 		if ((ENV_BOOTBLOCK || ENV_VERSTAGE) &&
@@ -99,7 +106,7 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
 		timestamp_add_now(TS_START_ULZ4F);
 		out_size = ulz4fn(compr_start, in_size, buffer, buffer_size);
 		timestamp_add_now(TS_END_ULZ4F);
-		return out_size;
+		break;
 
 	case CBFS_COMPRESS_LZMA:
 		if (ENV_BOOTBLOCK || ENV_VERSTAGE)
@@ -118,11 +125,15 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
 
 		rdev_munmap(rdev, map);
 
-		return out_size;
+		break;
 
 	default:
 		return 0;
 	}
+
+	prog_segment_loaded((uintptr_t)buffer, out_size, SEG_FINAL);
+
+	return out_size;
 }
 
 static inline int tohex4(unsigned int c)
