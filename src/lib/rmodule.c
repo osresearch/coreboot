@@ -125,10 +125,21 @@ static inline size_t rmodule_number_relocations(const struct rmodule *module)
 
 static void rmodule_copy_payload(const struct rmodule *module)
 {
-	printk(BIOS_DEBUG, "Loading module at %p with entry %p. "
-	       "filesize: 0x%x memsize: 0x%x\n",
-	       module->location, rmodule_entry(module),
-	       module->payload_size, rmodule_memory_size(module));
+	const size_t mem_size = rmodule_memory_size(module);
+
+	printk(BIOS_DEBUG, "Loading module at %p/%p with entry %p. "
+	       "filesize: 0x%x memsize: 0x%zx\n",
+	       module->location, module->payload, rmodule_entry(module),
+	       module->payload_size, mem_size);
+
+	// zero the excess memory if there is any
+	if (mem_size > module->payload_size)
+	{
+		memset((uint8_t*) module->location + module->payload_size,
+			0,
+			mem_size - module->payload_size
+		);
+	}
 
 	/* No need to copy the payload if the load location and the
 	 * payload location are the same. */
@@ -162,7 +173,8 @@ static int rmodule_relocate(const struct rmodule *module)
 		printk(PK_ADJ_LEVEL, "Adjusting %p: 0x%08lx -> 0x%08lx\n",
 		       adjust_loc, (unsigned long) *adjust_loc,
 		       (unsigned long) (*adjust_loc + adjustment));
-			*adjust_loc += adjustment;
+
+		*adjust_loc += adjustment;
 
 		reloc++;
 		num_relocations--;
