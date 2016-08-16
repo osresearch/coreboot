@@ -393,6 +393,21 @@ config BOOTSPLASH_FILE
 	  The path and filename of the file to use as graphical bootsplash
 	  screen. The file format has to be jpg.
 
+config MEASURED_BOOT
+	bool "Enable TPM measured boot"
+	default n
+	select TPM
+	depends on MAINBOARD_HAS_LPC_TPM
+	depends on !VBOOT
+	help
+	  Enable this option to measure the bootblock, romstage and
+	  CBFS files into TPM PCRs.  This does not verify these values
+	  (that is the job of something like vboot), but makes it possible
+	  for the payload to validate the boot path and allow something
+	  like Heads to attest to the user that the system is likely safe.
+
+	  You probably want to say N.
+
 endmenu
 
 menu "Mainboard"
@@ -486,7 +501,7 @@ config RTC
 
 config TPM
 	bool
-	default y
+	default n
 	select LPC_TPM if MAINBOARD_HAS_LPC_TPM
 	select I2C_TPM if !MAINBOARD_HAS_LPC_TPM && !SPI_TPM
 	help

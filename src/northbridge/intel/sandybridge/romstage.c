@@ -65,7 +65,7 @@ void mainboard_romstage_entry(unsigned long bist)
 
 	pch_enable_lpc();
 
-	if (IS_ENABLED(CONFIG_LPC_TPM)) {
+	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && IS_ENABLED(CONFIG_LPC_TPM)) {
 		// we don't know if we are coming out of a resume
 		// at this point, but want to setup the tpm ASAP
 		init_tpm(0);
@@ -130,12 +130,21 @@ void mainboard_romstage_entry(unsigned long bist)
 
 	northbridge_romstage_finalize(s3resume);
 
+	// the normal TPM init happens here, if we haven't already
+	// set it up as part of the measured boot.
+	if (!IS_ENABLED(CONFIG_MEASURED_BOOT) && IS_ENABLED(CONFIG_LPC_TPM)) {
+		init_tpm(s3resume);
+	}
+
 	post_code(0x3f);
 }
 
 
 void platform_segment_loaded(uintptr_t start, size_t size, int flags)
 {
-	tlcl_measure(2, (const void*) start, size);
+	if (IS_ENABLED(CONFIG_MEASURED_BOOT))
+	{
+		tlcl_measure(2, (const void*) start, size);
+	}
 }
 

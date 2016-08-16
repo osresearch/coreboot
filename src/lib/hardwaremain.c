@@ -528,9 +528,12 @@ void boot_state_current_unblock(void)
 	boot_state_unblock(current_phase.state_id, current_phase.seq);
 }
 
-// ramstage measurements go into PCR3
+// ramstage measurements go into PCR3 if we are doing measured boot
 void platform_segment_loaded(uintptr_t start, size_t size, int flags)
 {
-        tlcl_measure(3, (const void*) start, size);
+	if (IS_ENABLED(CONFIG_MEASURED_BOOT))
+	{
+		tlcl_measure(3, (const void*) start, size);
+	}
 }
 
