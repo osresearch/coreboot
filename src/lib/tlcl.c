@@ -341,6 +341,8 @@ uint32_t tlcl_measure(int pcr_num, const void * start, size_t len)
 		VBDEBUG("%02x", hash[i]);
 	VBDEBUG("\n");
 
+	//hexdump(start, 128);
+
 	return tlcl_extend(pcr_num, hash, NULL);
 }
 

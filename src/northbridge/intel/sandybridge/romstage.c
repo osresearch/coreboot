@@ -136,6 +136,8 @@ void mainboard_romstage_entry(unsigned long bist)
 		init_tpm(s3resume);
 	}
 
+	printk(BIOS_DEBUG, "%s: romstage complete\n", __FILE__);
+
 	post_code(0x3f);
 }
 
