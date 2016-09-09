@@ -9,8 +9,7 @@
 #define _sha1_h_
 
 #include <stdint.h>
-
-#define DIV_ROUND_UP(x, y) (((x) + ((y) - 1)) / (y))
+#include <commonlib/helpers.h>
 
 #define SHA1_DIGEST_SIZE 20
 #define SHA1_BLOCK_SIZE 64
