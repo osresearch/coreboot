@@ -17,7 +17,6 @@
 #include <cbfs.h>
 #include <cbmem.h>
 #include <console/console.h>
-#include <ec/google/chromeec/ec.h>
 #include <elog.h>
 #include <fsp/api.h>
 #include <fsp/util.h>
@@ -104,7 +103,7 @@ static void do_fsp_post_memory_init(bool s3wake, uint32_t fsp_version)
 		printk(BIOS_SPEW, "Romstage handoff structure not added!\n");
 }
 
-static void fsp_fill_mrc_cache(struct FSPM_ARCH_UPD *arch_upd, bool s3wake,
+static void fsp_fill_mrc_cache(FSPM_ARCH_UPD *arch_upd, bool s3wake,
 				uint32_t fsp_version)
 {
 	const struct mrc_saved_data *mrc_cache;
@@ -153,7 +152,7 @@ static enum cb_err check_region_overlap(const struct memranges *ranges,
 	return CB_SUCCESS;
 }
 
-static enum cb_err fsp_fill_common_arch_params(struct FSPM_ARCH_UPD *arch_upd,
+static enum cb_err fsp_fill_common_arch_params(FSPM_ARCH_UPD *arch_upd,
 					bool s3wake, uint32_t fsp_version,
 					const struct memranges *memmap)
 {
@@ -184,14 +183,14 @@ static enum cb_err fsp_fill_common_arch_params(struct FSPM_ARCH_UPD *arch_upd,
 static void do_fsp_memory_init(struct fsp_header *hdr, bool s3wake,
 					const struct memranges *memmap)
 {
-	enum fsp_status status;
+	uint32_t status;
 	fsp_memory_init_fn fsp_raminit;
-	struct FSPM_UPD fspm_upd, *upd;
-	struct FSPM_ARCH_UPD *arch_upd;
+	FSPM_UPD fspm_upd, *upd;
+	FSPM_ARCH_UPD *arch_upd;
 
 	post_code(0x34);
 
-	upd = (struct FSPM_UPD *)(hdr->cfg_region_offset + hdr->image_base);
+	upd = (FSPM_UPD *)(hdr->cfg_region_offset + hdr->image_base);
 
 	if (upd->FspUpdHeader.Signature != FSPM_UPD_SIGNATURE) {
 		die("Invalid FSPM signature!\n");
@@ -295,14 +294,6 @@ void fsp_memory_init(bool s3wake)
 
 	if (IS_ENABLED(CONFIG_ELOG_BOOT_COUNT) && !s3wake)
 		boot_count_increment();
-
-	/*
-	 * Before doing any memory init/training, ensure that the EC is in the
-	 * right mode. This saves an additional memory training when in recovery
-	 * mode.
-	 */
-	if (IS_ENABLED(CONFIG_EC_GOOGLE_CHROMEEC))
-		google_chromeec_early_init();
 
 	if (cbfs_boot_locate(&file_desc, name, NULL)) {
 		printk(BIOS_CRIT, "Could not locate %s in CBFS\n", name);

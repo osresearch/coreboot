@@ -32,7 +32,7 @@
 static int ec_input_buffer_empty(u8 status_port)
 {
 	u32 timeout;
-	for(timeout = KBC_TIMEOUT_IN_MS; timeout && (inb(status_port) & KBD_IBF);
+	for (timeout = KBC_TIMEOUT_IN_MS; timeout && (inb(status_port) & KBD_IBF);
 	    timeout--) {
 		mdelay(1);
 	}
@@ -47,7 +47,7 @@ static int ec_input_buffer_empty(u8 status_port)
 static int ec_output_buffer_full(u8 status_port)
 {
 	u32 timeout;
-	for(timeout = KBC_TIMEOUT_IN_MS; timeout && ((inb(status_port)
+	for (timeout = KBC_TIMEOUT_IN_MS; timeout && ((inb(status_port)
 	    & KBD_OBF) == 0); timeout--) {
 		mdelay(1);
 	}
@@ -154,7 +154,7 @@ static struct device_operations ops = {
 };
 
 static struct pnp_info pnp_dev_info[] = {
-        { &ops, 0, 0, { 0, 0 }, }
+	{ &ops, 0, 0, { 0, 0 }, }
 };
 
 static void enable_dev(struct device *dev)

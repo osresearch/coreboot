@@ -31,25 +31,25 @@ static const struct pad_community {
 	const char *grp_name;
 } gpio_communities[] = {
 	{
-		.port = GPIO_SOUTHWEST,
+		.port = GPIO_SW,
 		.first_pad = SW_OFFSET,
 		.num_gpi_regs = NUM_SW_GPI_REGS,
 		.gpi_offset = 0,
 		.grp_name = "GPIO_GPE_SW",
 	}, {
-		.port = GPIO_WEST,
+		.port = GPIO_W,
 		.first_pad = W_OFFSET,
 		.num_gpi_regs = NUM_W_GPI_REGS,
 		.gpi_offset = NUM_SW_GPI_REGS,
 		.grp_name = "GPIO_GPE_W",
 	}, {
-		.port = GPIO_NORTHWEST,
+		.port = GPIO_NW,
 		.first_pad = NW_OFFSET,
 		.num_gpi_regs = NUM_NW_GPI_REGS,
 		.gpi_offset = NUM_W_GPI_REGS + NUM_SW_GPI_REGS,
 		.grp_name = "GPIO_GPE_NW",
 	}, {
-		.port = GPIO_NORTH,
+		.port = GPIO_N,
 		.first_pad = N_OFFSET,
 		.num_gpi_regs = NUM_N_GPI_REGS,
 		.gpi_offset = NUM_NW_GPI_REGS+ NUM_W_GPI_REGS + NUM_SW_GPI_REGS,
@@ -72,6 +72,10 @@ static const struct pad_community *gpio_get_community(uint16_t pad)
 static void gpio_configure_itss(const struct pad_config *cfg,
 				uint16_t port, uint16_t pad_cfg_offset)
 {
+	/* No ITSS configuration in SMM. */
+	if (ENV_SMM)
+		return;
+
 	int irq;
 
 	/* Set up ITSS polarity if pad is routed to APIC.
@@ -225,13 +229,13 @@ const char *gpio_acpi_path(gpio_t gpio_num)
 	const struct pad_community *comm = gpio_get_community(gpio_num);
 
 	switch (comm->port) {
-	case GPIO_NORTH:
+	case GPIO_N:
 		return "\\_SB.GPO0";
-	case GPIO_NORTHWEST:
+	case GPIO_NW:
 		return "\\_SB.GPO1";
-	case GPIO_WEST:
+	case GPIO_W:
 		return "\\_SB.GPO2";
-	case GPIO_SOUTHWEST:
+	case GPIO_SW:
 		return "\\_SB.GPO3";
 	}
 
@@ -243,13 +247,13 @@ uint16_t gpio_acpi_pin(gpio_t gpio_num)
 	const struct pad_community *comm = gpio_get_community(gpio_num);
 
 	switch (comm->port) {
-	case GPIO_NORTH:
+	case GPIO_N:
 		return PAD_N(gpio_num);
-	case GPIO_NORTHWEST:
+	case GPIO_NW:
 		return PAD_NW(gpio_num);
-	case GPIO_WEST:
+	case GPIO_W:
 		return PAD_W(gpio_num);
-	case GPIO_SOUTHWEST:
+	case GPIO_SW:
 		return PAD_SW(gpio_num);
 	}
 
@@ -277,7 +281,7 @@ static void print_gpi_status(const struct gpi_status *sts)
 
 				abs_bit = bit_set;
 				abs_bit += group * GPIO_MAX_NUM_PER_GROUP;
-				printk(BIOS_DEBUG, "%s %d \n",comm->grp_name,
+				printk(BIOS_DEBUG, "%s %d\n",comm->grp_name,
 								abs_bit);
 			}
 		}
@@ -324,7 +328,7 @@ int gpi_status_get(const struct gpi_status *sts, gpio_t gpi)
 	if (comm == NULL)
 		return 0;
 
-	sts_index = comm->gpi_offset + (gpi - (comm->first_pad) /
+	sts_index = comm->gpi_offset + ((gpi - comm->first_pad) /
 					GPIO_MAX_NUM_PER_GROUP);
 
 	return !!(sts->grp[sts_index] & (1 << (gpi % GPIO_MAX_NUM_PER_GROUP)));
@@ -361,6 +365,7 @@ void gpio_route_gpe(uint8_t gpe0b, uint8_t gpe0c, uint8_t gpe0d)
 	uint32_t misccfg_mask;
 	uint32_t misccfg_value;
 	uint32_t value;
+	int ret;
 
 	/* Get the group here for community specific MISCCFG register.
 	 * If any of these returns -1 then there is some error in devicetree
@@ -368,15 +373,20 @@ void gpio_route_gpe(uint8_t gpe0b, uint8_t gpe0c, uint8_t gpe0d)
 	 * PMC group defines. So we return from here and MISCFG is set to
 	 * default.
 	 */
-	gpe0b = pmc_gpe_route_to_gpio(gpe0b);
-	if(gpe0b == -1)
+	ret = pmc_gpe_route_to_gpio(gpe0b);
+	if (ret == -1)
 		return;
-	gpe0c = pmc_gpe_route_to_gpio(gpe0c);
-	if(gpe0c == -1)
+	gpe0b = ret;
+
+	ret = pmc_gpe_route_to_gpio(gpe0c);
+	if (ret == -1)
 		return;
-	gpe0d = pmc_gpe_route_to_gpio(gpe0d);
-	if(gpe0d == -1)
+	gpe0c = ret;
+
+	ret = pmc_gpe_route_to_gpio(gpe0d);
+	if (ret == -1)
 		return;
+	gpe0d = ret;
 
 	misccfg_value = gpe0b << MISCCFG_GPE0_DW0_SHIFT;
 	misccfg_value |= gpe0c << MISCCFG_GPE0_DW1_SHIFT;

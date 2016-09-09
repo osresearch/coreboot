@@ -21,14 +21,9 @@ menu "ChromeOS"
 config CHROMEOS
 	bool "Build for ChromeOS"
 	default n
-	select TPM if !MAINBOARD_HAS_TPM2
-	select TPM2 if MAINBOARD_HAS_TPM2
-	select TPM_INIT_FAILURE_IS_FATAL if PC80_SYSTEM && LPC_TPM
-	select SKIP_TPM_STARTUP_ON_NORMAL_BOOT if PC80_SYSTEM && LPC_TPM
-	select ELOG if SPI_FLASH
+	select ELOG if BOOT_DEVICE_SUPPORTS_WRITES
 	select COLLECT_TIMESTAMPS
 	select VBOOT
-	select MULTIPLE_CBFS_INSTANCES
 	help
 	  Enable ChromeOS specific features like the GPIO sub table in
 	  the coreboot table. NOTE: Enabling this option on an unsupported

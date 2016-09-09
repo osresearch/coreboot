@@ -39,6 +39,7 @@
 #include <console/console.h>
 #include <string.h>
 #include <arch/acpi.h>
+#include <arch/acpi_ivrs.h>
 #include <arch/acpigen.h>
 #include <device/pci.h>
 #include <cbmem.h>
@@ -603,7 +604,7 @@ void acpi_create_ivrs(acpi_ivrs_t *ivrs,
 	memcpy(header->asl_compiler_id, ASLC, 4);
 
 	header->length = sizeof(acpi_ivrs_t);
-	header->revision = 1; /* ACPI 1.0: N/A, ACPI 2.0/3.0/4.0: 1 */
+	header->revision = IVRS_FORMAT_FIXED;
 
 	current = acpi_fill_ivrs(ivrs, current);
 
@@ -814,7 +815,7 @@ void acpi_create_fadt(acpi_fadt_t *fadt,acpi_facs_t *facs, void *dsdt)
 	fadt->x_dsdt_l = (unsigned long)dsdt;
 	fadt->x_dsdt_h = 0;
 
-	if(IS_ENABLED(CONFIG_SYSTEM_TYPE_LAPTOP)) {
+	if (IS_ENABLED(CONFIG_SYSTEM_TYPE_LAPTOP)) {
 		fadt->preferred_pm_profile = PM_MOBILE;
 	} else {
 		fadt->preferred_pm_profile = PM_DESKTOP;

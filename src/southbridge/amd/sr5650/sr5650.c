@@ -817,8 +817,8 @@ unsigned long acpi_fill_mcfg(unsigned long current)
 	resource_t mmconf_base = EXT_CONF_BASE_ADDRESS;
 
 	if (IS_ENABLED(CONFIG_EXT_CONF_SUPPORT)) {
-        	res = sr5650_retrieve_cpu_mmio_resource();
-        	if (res)
+		res = sr5650_retrieve_cpu_mmio_resource();
+		if (res)
 			mmconf_base = res->base;
 
 		current += acpi_create_mcfg_mmconfig((acpi_mcfg_mmconfig_t *)current, mmconf_base, 0x0, 0x0, 0x1f);
@@ -860,7 +860,7 @@ static unsigned long acpi_fill_ivrs(acpi_ivrs_t* ivrs, unsigned long current)
 	ivrs->ivhd.pci_segment_group = 0x0;
 	ivrs->ivhd.iommu_info = 0x0;
 	ivrs->ivhd.iommu_info |= (0x14 << 8);
-	ivrs->ivhd.efr = 0x0;
+	ivrs->ivhd.iommu_feature_info = 0x0;
 
 	/* Describe HPET */
 	p = (uint8_t *)current;

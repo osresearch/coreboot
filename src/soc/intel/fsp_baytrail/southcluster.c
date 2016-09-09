@@ -190,7 +190,7 @@ static void write_pci_config_irqs(void)
 	 * the Interrupt Route registers in the ILB
 	 */
 	printk(BIOS_DEBUG, "PCI_CFG IRQ: Write PCI config space IRQ assignments\n");
-	for(irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
+	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 
 		if ((irq_dev->path.type != DEVICE_PATH_PCI) ||
 			(!irq_dev->enabled))
@@ -272,7 +272,7 @@ static void sc_pirq_init(device_t dev)
 
 	/* Set up the PIRQ PIC routing based on static config. */
 	printk(BIOS_SPEW, "Start writing IRQ assignments\n"
-			"PIRQ\tA \tB \tC \tD \tE \tF \tG \tH\n"
+			"PIRQ\tA\tB\tC\tD\tE\tF\tG\tH\n"
 			"IRQ ");
 	for (i = 0; i < NUM_PIRQS; i++) {
 		write8(pr_base + i, ir->pic[i]);
@@ -287,7 +287,7 @@ static void sc_pirq_init(device_t dev)
 		write16(ir_base + i, ir->pcidev[i]);
 
 		/* If the entry is more than just 0, print it out */
-		if(ir->pcidev[i]) {
+		if (ir->pcidev[i]) {
 			printk(BIOS_SPEW, " %d: ", i);
 			for (j = 0; j < 4; j++) {
 				pirq = (ir->pcidev[i] >> (j * 4)) & 0xF;

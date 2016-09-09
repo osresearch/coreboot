@@ -16,13 +16,17 @@
 
 #include <arch/io.h>
 #include <bootblock_common.h>
+#include <console/console.h>
+#include <delay.h>
 #include <soc/grf.h>
 #include <gpio.h>
+#include <soc/clock.h>
 #include <soc/i2c.h>
+#include <soc/pwm.h>
 #include <soc/spi.h>
-#include <console/console.h>
 
 #include "board.h"
+#include "pwm_regulator.h"
 
 void bootblock_mainboard_early_init(void)
 {
@@ -58,12 +62,23 @@ void bootblock_mainboard_early_init(void)
 #endif
 }
 
+static void speed_up_boot_cpu(void)
+{
+	pwm_regulator_configure(PWM_REGULATOR_LIT, 1200);
+
+	udelay(200);
+
+	rkclk_configure_cpu(APLL_1512_MHZ, false);
+}
+
 void bootblock_mainboard_init(void)
 {
+	speed_up_boot_cpu();
+
 	/* Set pinmux and configure spi flashrom. */
 	write32(&rk3399_pmugrf->spi1_rxd, IOMUX_SPI1_RX);
 	write32(&rk3399_pmugrf->spi1_csclktx, IOMUX_SPI1_CSCLKTX);
-	rockchip_spi_init(CONFIG_BOOT_MEDIA_SPI_BUS, 24750*KHz);
+	rockchip_spi_init(CONFIG_BOOT_DEVICE_SPI_FLASH_BUS, 24750*KHz);
 
 	/* Set pinmux and configure EC SPI. */
 	write32(&rk3399_grf->iomux_spi5, IOMUX_SPI5);

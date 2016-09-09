@@ -246,6 +246,16 @@ void disable_all_gpe(void)
 	disable_gpe(~0);
 }
 
+/* Clear the gpio gpe0 status bits in ACPI registers */
+void clear_gpi_gpe_sts(void)
+{
+	int i;
+
+	for (i = 1; i < GPE0_REG_MAX; i++) {
+		uint32_t gpe_sts = inl(ACPI_PMIO_BASE + GPE0_STS(i));
+		outl(gpe_sts, ACPI_PMIO_BASE + GPE0_STS(i));
+	}
+}
 
 static uint32_t reset_gpe_status(void)
 {
@@ -443,5 +453,12 @@ void vboot_platform_prepare_reboot(void)
 void poweroff(void)
 {
 	enable_pm1_control(SLP_EN | (SLP_TYP_S5 << SLP_TYP_SHIFT));
-	halt();
+
+	/*
+	 * Setting SLP_TYP_S5 in PM1 triggers SLP_SMI, which is handled by SMM
+	 * to transition to S5 state. If halt is called in SMM, then it prevents
+	 * the SMI handler from being triggered and system never enters S5.
+	 */
+	if (!ENV_SMM)
+		halt();
 }

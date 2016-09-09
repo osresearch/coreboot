@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <soc/lpc.h>
 #include <soc/me.h>
+#include <soc/p2sb.h>
 #include <soc/pci_devs.h>
 #include <soc/pcr.h>
 #include <soc/pm.h>
@@ -33,12 +34,6 @@
 #include <soc/systemagent.h>
 #include <device/pci.h>
 #include <chip.h>
-
-#define PCH_P2SB_EPMASK0		0xB0
-#define PCH_P2SB_EPMASK(mask_number) 	PCH_P2SB_EPMASK0 + (mask_number * 4)
-
-#define PCH_P2SB_E0			0xE0
-#define PCH_PWRM_ACPI_TMR_CTL		0xFC
 
 static void pch_configure_endpoints(device_t dev, int epmask_id, uint32_t mask)
 {
@@ -106,7 +101,7 @@ static void pch_finalize_script(void)
 	write32(spibar + SPIBAR_HSFS, hsfs);
 
 	/*TCO Lock down */
-	tcobase = pmc_tco_regs();
+	tcobase = smbus_tco_regs();
 	tcocnt = inw(tcobase + TCO1_CNT);
 	tcocnt |= TCO_LOCK;
 	outw(tcocnt, tcobase + TCO1_CNT);

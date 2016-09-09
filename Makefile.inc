@@ -60,7 +60,7 @@ coreboot: build-dirs $(obj)/coreboot.rom $(obj)/cbfstool $(obj)/rmodtool $(obj)/
 # targets after the build completes by creating a Makefile.inc in the
 # site-local directory with a target named 'build_complete::'
 build_complete:: coreboot
-	printf "\nBuilt %s (%s)\n" $(MAINBOARD_DIR) \
+	printf "\nBuilt %s (%s)\n" $(MAINBOARDDIR) \
 		$(CONFIG_MAINBOARD_PART_NUMBER)
 
 # This target can be used to run rules after all files were added to CBFS,
@@ -276,6 +276,18 @@ cbfs-files-processor-defconfig= \
 		cat $(2).tmp2 >> $(2).tmp && \
 		rm -f $(2).tmp2 && \
 		\mv -f $(2).tmp $(2))
+
+#######################################################################
+# Compile a C file with a bare struct definition into binary
+# arg1: C source file
+# arg2: binary file
+cbfs-files-processor-struct= \
+	$(eval $(2): $(1) $(obj)/build.h $(KCONFIG_AUTOHEADER); \
+		printf "    CC+STRIP   $(@)\n"; \
+		$(CC_ramstage) -MMD $(CPPFLAGS_ramstage) $(CFLAGS_ramstage) $(ramstage-c-ccopts) -include $(KCONFIG_AUTOHEADER) -MT $(2) -o $(2).tmp -c $(1) && \
+		$(OBJCOPY_ramstage) -O binary $(2).tmp $(2); \
+		rm -f $(2).tmp) \
+	$(eval DEPENDENCIES += $(2).d)
 
 #######################################################################
 # Add handler for arbitrary files in CBFS

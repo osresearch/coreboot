@@ -469,7 +469,7 @@ static u8 sdram_possible_cas_latencies(struct sys_info * sysinfo)
 						  SPD_ACCEPTABLE_CAS_LATENCIES);
 	}
 
-	if(!cas_mask) {
+	if (!cas_mask) {
 		die("No DDR-II modules with accepted CAS latencies found.\n");
 	}
 
@@ -632,7 +632,7 @@ static void sdram_detect_smallest_tRAS(struct sys_info * sysinfo)
 			tRAS_cycles++;
 		}
 	}
-	if(tRAS_cycles > 0x18) {
+	if (tRAS_cycles > 0x18) {
 		die("DDR-II Module does not support this frequency (tRAS error)\n");
 	}
 
@@ -673,7 +673,7 @@ static void sdram_detect_smallest_tRP(struct sys_info * sysinfo)
 		}
 	}
 
-	if(tRP_cycles > 6) {
+	if (tRP_cycles > 6) {
 		die("DDR-II Module does not support this frequency (tRP error)\n");
 	}
 
@@ -713,7 +713,7 @@ static void sdram_detect_smallest_tRCD(struct sys_info * sysinfo)
 			tRCD_cycles++;
 		}
 	}
-	if(tRCD_cycles > 6) {
+	if (tRCD_cycles > 6) {
 		die("DDR-II Module does not support this frequency (tRCD error)\n");
 	}
 
@@ -753,7 +753,7 @@ static void sdram_detect_smallest_tWR(struct sys_info * sysinfo)
 			tWR_cycles++;
 		}
 	}
-	if(tWR_cycles > 5) {
+	if (tWR_cycles > 5) {
 		die("DDR-II Module does not support this frequency (tWR error)\n");
 	}
 
@@ -1235,7 +1235,7 @@ static void sdram_program_dll_timings(struct sys_info *sysinfo)
 	u32 chan0dll = 0, chan1dll = 0;
 	int i;
 
-	printk(BIOS_DEBUG, "Programming DLL Timings... \n");
+	printk(BIOS_DEBUG, "Programming DLL Timings...\n");
 
 	MCHBAR16(DQSMT) &= ~( (3 << 12) | (1 << 10) | ( 0xf << 0) );
 	MCHBAR16(DQSMT) |= (1 << 13) | (0xc << 0);
@@ -1287,7 +1287,7 @@ static void sdram_initialize_system_memory_io(struct sys_info *sysinfo)
 	u8 reg8;
 	u32 reg32;
 
-	printk(BIOS_DEBUG, "Initializing System Memory IO... \n");
+	printk(BIOS_DEBUG, "Initializing System Memory IO...\n");
 	/* Enable Data Half Clock Pushout */
 	reg8 = MCHBAR8(C0HCTC);
 	reg8 &= ~0x1f;
@@ -1329,7 +1329,7 @@ static void sdram_enable_system_memory_io(struct sys_info *sysinfo)
 {
 	u32 reg32;
 
-	printk(BIOS_DEBUG, "Enabling System Memory IO... \n");
+	printk(BIOS_DEBUG, "Enabling System Memory IO...\n");
 
 	reg32 = MCHBAR32(RCVENMT);
 	reg32 &= ~(0x3f << 6);
@@ -1466,7 +1466,7 @@ static void sdram_detect_dimm_size(struct sys_info * sysinfo)
 {
 	int i;
 
-	for(i = 0; i < 2 * DIMM_SOCKETS; i++) {
+	for (i = 0; i < 2 * DIMM_SOCKETS; i++) {
 		struct dimm_size sz;
 
 		sysinfo->banksize[i * 2] = 0;
@@ -1508,7 +1508,7 @@ static int sdram_program_row_boundaries(struct sys_info *sysinfo)
 	printk(BIOS_DEBUG, "Setting RAM size...\n");
 
 	cum0 = 0;
-	for(i = 0; i < 2 * DIMM_SOCKETS; i++) {
+	for (i = 0; i < 2 * DIMM_SOCKETS; i++) {
 		cum0 += sysinfo->banksize[i];
 		MCHBAR8(C0DRB0+i) = cum0;
 	}
@@ -1527,7 +1527,7 @@ static int sdram_program_row_boundaries(struct sys_info *sysinfo)
 		cum1 = 0;
 #endif
 
-	for(i = 0; i < 2 * DIMM_SOCKETS; i++) {
+	for (i = 0; i < 2 * DIMM_SOCKETS; i++) {
 		cum1 += sysinfo->banksize[i + 4];
 		MCHBAR8(C1DRB0+i) = cum1;
 	}
@@ -1561,8 +1561,8 @@ static int sdram_set_row_attributes(struct sys_info *sysinfo)
 	int i, value;
 	u16 dra0=0, dra1=0, dra = 0;
 
-	printk(BIOS_DEBUG, "Setting row attributes... \n");
-	for(i=0; i < 2 * DIMM_SOCKETS; i++) {
+	printk(BIOS_DEBUG, "Setting row attributes...\n");
+	for (i=0; i < 2 * DIMM_SOCKETS; i++) {
 		u16 device;
 		u8 columnsrows;
 
@@ -1908,7 +1908,7 @@ static void sdram_set_channel_mode(struct sys_info *sysinfo)
 	reg32 = MCHBAR32(DCC);
 	reg32 &= ~(7 << 0);
 
-	if(sysinfo->interleaved) {
+	if (sysinfo->interleaved) {
 		/* Dual Channel Interleaved */
 		printk(BIOS_DEBUG, "Dual Channel Interleaved.\n");
 		reg32 |= (1 << 1);
@@ -2763,7 +2763,7 @@ static void sdram_on_die_termination(struct sys_info *sysinfo)
 
 	if ( !(sysinfo->dimm[0] != SYSINFO_DIMM_NOT_POPULATED &&
 			sysinfo->dimm[1] != SYSINFO_DIMM_NOT_POPULATED) ) {
-		printk(BIOS_DEBUG, "one dimm per channel config.. \n");
+		printk(BIOS_DEBUG, "one dimm per channel config..\n");
 
 		reg32 = MCHBAR32(C0ODT);
 		reg32 &= ~(7 << 28);

@@ -118,6 +118,8 @@ asmlinkage void car_stage_entry(void)
 	if (postcar_frame_init(&pcf, 1*KiB))
 		die("Unable to initialize postcar frame.\n");
 
+	mainboard_save_dimm_info();
+
 	/*
 	 * We need to make sure ramstage will be run cached. At this point exact
 	 * location of ramstage in cbmem is not known. Instruct postcar to cache
@@ -131,7 +133,7 @@ asmlinkage void car_stage_entry(void)
 	run_postcar_phase(&pcf);
 }
 
-static void fill_console_params(struct FSPM_UPD *mupd)
+static void fill_console_params(FSPM_UPD *mupd)
 {
 	if (IS_ENABLED(CONFIG_CONSOLE_SERIAL)) {
 		mupd->FspmConfig.SerialDebugPortDevice = CONFIG_UART_FOR_CONSOLE;
@@ -146,7 +148,7 @@ static void fill_console_params(struct FSPM_UPD *mupd)
 	}
 }
 
-void platform_fsp_memory_init_params_cb(struct FSPM_UPD *mupd)
+void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd)
 {
 	fill_console_params(mupd);
 	mainboard_memory_init_params(mupd);
@@ -160,11 +162,18 @@ void platform_fsp_memory_init_params_cb(struct FSPM_UPD *mupd)
 	 * state machine transition to next boot state, so that it can function
 	 * as designed.
 	 */
-	mupd->FspmConfig.SkipCseRbp = IS_ENABLED(CONFIG_SPI_FLASH_MEMORY_MAPPED);
+	mupd->FspmConfig.SkipCseRbp =
+		IS_ENABLED(CONFIG_BOOT_DEVICE_MEMORY_MAPPED);
 }
 
 __attribute__ ((weak))
-void mainboard_memory_init_params(struct FSPM_UPD *mupd)
+void mainboard_memory_init_params(FSPM_UPD *mupd)
+{
+	printk(BIOS_DEBUG, "WEAK: %s/%s called\n", __FILE__, __func__);
+}
+
+__attribute__ ((weak))
+void mainboard_save_dimm_info(void)
 {
 	printk(BIOS_DEBUG, "WEAK: %s/%s called\n", __FILE__, __func__);
 }

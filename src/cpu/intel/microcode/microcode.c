@@ -65,7 +65,7 @@ static inline u32 read_microcode_rev(void)
 		"movl $0x01, %%eax\n\t"
 		"cpuid\n\t"
 		"movl $0x08b, %%ecx\n\t"
-		"rdmsr \n\t"
+		"rdmsr\n\t"
 		: /* outputs */
 		"=a" (msr.lo), "=d" (msr.hi)
 		: /* inputs */
@@ -175,7 +175,7 @@ const void *intel_microcode_find(void)
 		}
 
 		/* Checkpoint 1: The microcode update falls within CBFS */
-		if(update_size > microcode_len) {
+		if (update_size > microcode_len) {
 #if !defined(__ROMCC__)
 			printk(BIOS_WARNING, "Microcode header corrupted!\n");
 #endif

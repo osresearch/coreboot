@@ -45,6 +45,9 @@
 /* SOC initialization before RAM is enabled */
 void soc_pre_ram_init(struct romstage_params *params)
 {
+	/* Program MCHBAR and DMIBAR */
+	systemagent_early_init();
+
 	/* Prepare to initialize memory */
 	soc_fill_pei_data(params->pei_data);
 }
@@ -90,7 +93,7 @@ void soc_memory_init_params(struct romstage_params *params,
 	upd->DdrFreqLimit = config->DdrFreqLimit;
 	if (IS_ENABLED(CONFIG_SKIP_FSP_CAR)) {
 		upd->FspCarBase = CONFIG_DCACHE_RAM_BASE;
-		upd->FspCarSize = CONFIG_DCACHE_RAM_SIZE_TOTAL;
+		upd->FspCarSize = CONFIG_DCACHE_RAM_SIZE;
 	}
 }
 

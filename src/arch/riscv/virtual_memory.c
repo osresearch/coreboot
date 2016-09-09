@@ -16,6 +16,7 @@
 
 #include <arch/barrier.h>
 #include <arch/encoding.h>
+#include <arch/sbi.h>
 #include <atomic.h>
 #include <console/console.h>
 #include <stdint.h>
@@ -23,11 +24,77 @@
 
 pte_t* root_page_table;
 
-void walk_page_table(void) {
-	// TODO: implement a full walk to make sure memory was set up
-	//const size_t pte_per_page = RISCV_PGSIZE/sizeof(void*);
-	pte_t* t = root_page_table;
-	printk(BIOS_DEBUG, "root_page_table: %p\n", t);
+/* Indent the following text by 2*level spaces */
+static void indent(int level)
+{
+	int i;
+	for (i = 0; i < level; i++)
+		printk(BIOS_DEBUG, "  ");
+}
+
+/*
+ * Convert a page table index at a given page table level to a virtual address
+ * offset
+ */
+static uintptr_t index_to_virt_addr(int index, int level)
+{
+	/*
+	 * Index is at most RISCV_PGLEVEL_BITS bits wide (not considering the
+	 * leading zeroes. If level==0, the below expression thus shifts index
+	 * into the highest bits of a 64-bit number, and then shifts it down
+	 * with sign extension.
+	 *
+	 * If level>0, then the expression should work as expected, without any
+	 * magic.
+	 */
+	return ((intptr_t)index)
+		<< (64 - RISCV_PGLEVEL_BITS - level * RISCV_PGLEVEL_BITS)
+		>> (64 - VA_BITS);
+}
+
+/* Dump the page table structures to the console -- helper function */
+static void print_page_table_at(pte_t *pt, intptr_t virt_addr, int level)
+{
+	int i;
+
+	indent(level);
+	printk(BIOS_DEBUG, "Level %d page table at 0x%p\n", level, pt);
+
+	for (i = 0; i < RISCV_PGSIZE / sizeof(pte_t); i++) {
+		char urwx[8];
+		uintptr_t pointer;
+		intptr_t next_virt_addr;
+
+		if (!(pt[i] & PTE_V))
+			continue;
+
+		urwx[0] = (pt[i] & PTE_U)? 'u' : '-';
+		urwx[1] = (pt[i] & PTE_R)? 'r' : '-';
+		urwx[2] = (pt[i] & PTE_W)? 'w' : '-';
+		urwx[3] = (pt[i] & PTE_X)? 'x' : '-';
+		urwx[4] = '\0';
+
+		next_virt_addr = virt_addr + index_to_virt_addr(i, level);
+
+		pointer = ((uintptr_t)pt[i] >> 10) << RISCV_PGSHIFT;
+
+		indent(level + 1);
+		printk(BIOS_DEBUG, "Valid PTE at index %d (0x%016zx -> 0x%zx), ",
+				i, (size_t) next_virt_addr, (size_t) pointer);
+		if (PTE_TABLE(pt[i]))
+			printk(BIOS_DEBUG, "page table\n");
+		else
+			printk(BIOS_DEBUG, "protections %s\n", urwx);
+
+		if (PTE_TABLE(pt[i])) {
+			print_page_table_at((pte_t *)pointer, next_virt_addr, level + 1);
+		}
+	}
+}
+
+/* Print the page table structures to the console */
+void print_page_table(void) {
+	print_page_table_at(root_page_table, 0, 0);
 }
 
 void flush_tlb(void)
@@ -85,7 +152,7 @@ void init_vm(uintptr_t virtMemStart, uintptr_t physMemStart, uintptr_t pageTable
 
 	// map SBI at top of vaddr space
 	uintptr_t num_sbi_pages = 1; // only need to map a single page for sbi interface
-	uintptr_t sbiStartAddress = 0x2000; // the start of the sbi mapping
+	uintptr_t sbiStartAddress = (uintptr_t) &sbi_page;
 	uintptr_t sbiAddr = sbiStartAddress;
 	for (uintptr_t i = 0; i < num_sbi_pages; i++) {
 		uintptr_t idx = (1 << RISCV_PGLEVEL_BITS) - num_sbi_pages + i;
@@ -119,19 +186,22 @@ void initVirtualMemory(void) {
 	}
 
 	printk(BIOS_DEBUG, "Initializing virtual memory...\n");
-	uintptr_t physicalStart = 0x1000000; // TODO: Figure out how to grab this from cbfs
-	uintptr_t virtualStart = 0xffffffff81000000;
-	uintptr_t pageTableStart = 0x1400000;
+	uintptr_t physicalStart = 0x90000000; // TODO: Figure out how to grab this from cbfs
+	uintptr_t virtualStart = 0xffffffff80000000;
+	uintptr_t pageTableStart = 0x91400000;
 	init_vm(virtualStart, physicalStart, pageTableStart);
 	mb();
+
+#if IS_ENABLED(CONFIG_DEBUG_PRINT_PAGE_TABLES)
 	printk(BIOS_DEBUG, "Finished initializing virtual memory, starting walk...\n");
-	walk_page_table();
+	print_page_table();
+#else
+	printk(BIOS_DEBUG, "Finished initializing virtual memory\n");
+#endif
 }
 
 void mstatus_init(void)
 {
-	// supervisor support is required
-
 	uintptr_t ms = 0;
 	ms = INSERT_FIELD(ms, MSTATUS_FS, 3);
 	ms = INSERT_FIELD(ms, MSTATUS_XS, 3);
@@ -139,4 +209,18 @@ void mstatus_init(void)
 
 	clear_csr(mip, MIP_MSIP);
 	set_csr(mie, MIP_MSIP);
+
+	/* Configure which exception causes are delegated to supervisor mode */
+	set_csr(medeleg,  (1 << CAUSE_MISALIGNED_FETCH)
+			| (1 << CAUSE_FAULT_FETCH)
+			| (1 << CAUSE_ILLEGAL_INSTRUCTION)
+			| (1 << CAUSE_BREAKPOINT)
+			| (1 << CAUSE_FAULT_LOAD)
+			| (1 << CAUSE_FAULT_STORE)
+			| (1 << CAUSE_USER_ECALL)
+	);
+
+	/* Enable all user/supervisor-mode counters */
+	write_csr(mscounteren, 0b111);
+	write_csr(mucounteren, 0b111);
 }

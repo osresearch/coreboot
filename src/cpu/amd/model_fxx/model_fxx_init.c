@@ -44,9 +44,9 @@ void cpus_ready_for_init(void)
 {
 #if CONFIG_K8_REV_F_SUPPORT
 #if CONFIG_MEM_TRAIN_SEQ == 1
-        struct sys_info *sysinfox = (struct sys_info *)((CONFIG_RAMTOP) - sizeof(*sysinfox));
-        // wait for ap memory to trained
-        wait_all_core0_mem_trained(sysinfox);
+	struct sys_info *sysinfox = (struct sys_info *)((CONFIG_RAMTOP) - sizeof(*sysinfox));
+	// wait for ap memory to trained
+	wait_all_core0_mem_trained(sysinfox);
 #endif
 #endif
 }
@@ -508,7 +508,7 @@ static void model_fxx_init(device_t dev)
 	/* Set the processor name string */
 	init_processor_name();
 
-	/* Enable the local CPU apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 
 #if CONFIG_LOGICAL_CPUS

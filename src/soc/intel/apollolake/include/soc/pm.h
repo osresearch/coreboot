@@ -25,16 +25,17 @@
 
 #define PM1_STS			0x00
 #define   WAK_STS		(1 << 15)
+#define   PCIEXPWAK_STS		(1 << 14)
+#define   PRBTNOR_STS		(1 << 11)
 #define   RTC_STS		(1 << 10)
 #define   PWRBTN_STS		(1 << 8)
+#define   GBL_STS		(1 << 5)
 
 #define PM1_EN			0x02
 #define   PCIEXPWAK_DIS		(1 << 14)
-#define   USB_WAKE_EN		(1 << 13)
 #define   RTC_EN		(1 << 10)
 #define   PWRBTN_EN     	(1 << 8)
 #define   GBL_EN        	(1 << 5)
-#define   TMROF_EN      	(1 << 0)
 
 #define PM1_CNT			0x04
 #define   SCI_EN		(1 << 0)
@@ -113,8 +114,30 @@
 #define GPE0_REG_MAX		4
 #define GPE0_REG_SIZE		32
 #define GPE0_STS(x)		(0x20 + (x * 4))
+#define  GPE0_A			0
+#define  GPE0_B			1
+#define  GPE0_C			2
+#define  GPE0_D			3
+#define   SATA_PME_STS		(1 << 17)
+#define   SMB_WAK_STS		(1 << 16)
+#define   AVS_PME_STS		(1 << 14)
+#define   XHCI_PME_STS		(1 << 13)
+#define   XDCI_PME_STS		(1 << 12)
+#define   CSE_PME_STS		(1 << 11)
+#define   BATLOW_STS		(1 << 10)
+#define   PCIE_GPE_STS		(1 << 9)
+#define   SWGPE_STS		(1 << 2)
 #define GPE0_EN(x)		(0x30 + (x * 4))
+#define   SATA_PME_EN		(1 << 17)
+#define   SMB_WAK_EN		(1 << 16)
+#define   AVS_PME_EN		(1 << 14)
 #define   PME_B0_EN		(1 << 13)
+#define   XDCI_PME_EN		(1 << 12)
+#define   CSE_PME_EN		(1 << 11)
+#define   BATLOW_EN		(1 << 10)
+#define   PCIE_GPE_EN		(1 << 9)
+#define   SWGPE_EN		(1 << 2)
+
 /*
  * Enables the setting of the GPIO_TIER1_SCI_STS bit to generate a wake event
  * and/or an SCI or SMI#.
@@ -124,11 +147,16 @@
 /* Memory mapped IO registers behind PMC_BASE_ADDRESS */
 #define PRSTS			0x1000
 #define GEN_PMCON1		0x1020
-#       define PWR_FLR		(1 << 16)
-#       define SUS_PWR_FLR	(1 << 14)
+#define  SRS			(1 << 20)
+#define  RPS			(1 << 2)
 #define GEN_PMCON2		0x1024
-#       define RPS		(1 <<  2)
 #define GEN_PMCON3		0x1028
+#       define SLP_S3_ASSERT_WIDTH_SHIFT	10
+#       define SLP_S3_ASSERT_MASK	(0x3 << SLP_S3_ASSERT_WIDTH_SHIFT)
+#       define SLP_S3_ASSERT_60_USEC	0x0
+#       define SLP_S3_ASSERT_1_MSEC	0x1
+#       define SLP_S3_ASSERT_50_MSEC	0x2
+#       define SLP_S3_ASSERT_2_SEC	0x3
 #define ETR			0x1048
 #       define CF9_LOCK         (1 << 31)
 #       define CF9_GLB_RST      (1 << 20)
@@ -173,6 +201,7 @@ uint16_t clear_pm1_status(void);
 uint32_t clear_tco_status(void);
 uint32_t clear_gpe_status(void);
 void clear_pmc_status(void);
+void clear_gpi_gpe_sts(void);
 uint32_t get_smi_en(void);
 void enable_smi(uint32_t mask);
 void disable_smi(uint32_t mask);
@@ -186,5 +215,7 @@ uintptr_t get_pmc_mmio_bar(void);
 
 void global_reset_enable(bool enable);
 void global_reset_lock(void);
+
+void pch_log_state(void);
 
 #endif

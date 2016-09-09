@@ -72,7 +72,7 @@ static void configure_c_states(void)
 	msr.lo &= ~(1 << 9); // Issue a  single stop grant cycle upon stpclk
 	msr.lo |= (1 << 3); // Dynamic L2
 
-        /* Number of supported C-States */
+	/* Number of supported C-States */
 	msr.lo &= ~7;
 	msr.lo |= HIGHEST_CLEVEL; // support at most C3
 
@@ -177,7 +177,7 @@ static void model_6fx_init(struct device *cpu)
 	/* Setup Page Attribute Tables (PAT) */
 	// TODO set up PAT
 
-	/* Enable the local CPU apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 
 	/* Enable virtualization */

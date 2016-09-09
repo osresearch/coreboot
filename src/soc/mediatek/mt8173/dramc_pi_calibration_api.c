@@ -79,7 +79,7 @@ void ca_training(u32 channel, const struct mt8173_sdram_params *sdram_params)
 		0, 1, 3, 3, 3, 4, 4, 5, 5
 	};
 
-	for(i = 0; i < CATRAINING_NUM; i++) {
+	for (i = 0; i < CATRAINING_NUM; i++) {
 		ca_shift[i] = params->ca_train[channel][i];
 		ca_shift_avg8 += ca_shift[i];
 	}
@@ -769,7 +769,7 @@ void tx_delay_for_wrleveling(u32 channel,
 		index = i / DQS_BIT_NUMBER;
 
 		if (i % DQS_BIT_NUMBER == 0)
-			dramc_dbg_msg("DQS%d: %d  \n", index,
+			dramc_dbg_msg("DQS%d: %d\n", index,
 				       wrlevel_dqs_dly[channel][index]);
 
 		if (max_dqsdly_byte[index] <= wrlevel_dqs_dly[channel][index]) {

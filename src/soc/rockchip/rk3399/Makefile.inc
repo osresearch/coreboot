@@ -23,10 +23,12 @@ ifeq ($(CONFIG_BOOTBLOCK_CONSOLE),y)
 bootblock-$(CONFIG_DRIVERS_UART) += ../common/uart.c
 endif
 bootblock-y += ../common/gpio.c
+bootblock-y += ../common/pwm.c
 bootblock-y += bootblock.c
 bootblock-y += clock.c
 bootblock-y += gpio.c
 bootblock-y += mmu_operations.c
+bootblock-y += saradc.c
 bootblock-y += timer.c
 
 verstage-y += ../common/cbmem.c
@@ -49,7 +51,6 @@ romstage-y += clock.c
 romstage-y += mmu_operations.c
 romstage-y += ../common/pwm.c
 romstage-y += timer.c
-romstage-y += romstage.c
 romstage-y += tsadc.c
 romstage-y += usb.c
 romstage-y += gpio.c
@@ -65,7 +66,6 @@ ramstage-$(CONFIG_DRIVERS_UART) += ../common/uart.c
 ramstage-y += clock.c
 ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += display.c
 ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += ../common/edp.c
-ramstage-y += emmc.c
 ramstage-y += ../common/gpio.c
 ramstage-y += gpio.c
 ramstage-y += ../common/i2c.c

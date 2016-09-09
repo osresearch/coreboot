@@ -13,15 +13,21 @@
  * GNU General Public License for more details.
  */
 
+#include <baseboard/variants.h>
 #include <bootblock_common.h>
 #include <soc/lpc.h>
 #include <soc/gpio.h>
-#include "ec.h"
-#include "gpio.h"
+#include <variant/ec.h>
+
+void mainboard_ec_init(void);
 
 void bootblock_mainboard_init(void)
 {
+	const struct pad_config *pads;
+	size_t num;
+
 	lpc_configure_pads();
-	gpio_configure_pads(early_gpio_table, ARRAY_SIZE(early_gpio_table));
+	pads = variant_early_gpio_table(&num);
+	gpio_configure_pads(pads, num);
 	mainboard_ec_init();
 }

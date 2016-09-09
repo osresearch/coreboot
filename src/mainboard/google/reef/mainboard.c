@@ -14,6 +14,7 @@
  */
 
 #include <arch/acpi.h>
+#include <baseboard/variants.h>
 #include <boardid.h>
 #include <console/console.h>
 #include <device/device.h>
@@ -21,25 +22,22 @@
 #include <soc/gpio.h>
 #include <soc/nhlt.h>
 #include <vendorcode/google/chromeos/chromeos.h>
-#include "ec.h"
-#include "gpio.h"
+#include <variant/ec.h>
+#include <variant/gpio.h>
+
+void mainboard_ec_init(void);
 
 static void mainboard_init(void *chip_info)
 {
 	int boardid;
+	const struct pad_config *pads;
+	size_t num;
 
 	boardid = board_id();
 	printk(BIOS_INFO, "Board ID: %d\n", boardid);
 
-	gpio_configure_pads(gpio_table, ARRAY_SIZE(gpio_table));
-
-	/* Apply proto board settings if board matches. */
-	if (boardid == 0)
-		gpio_configure_pads(proto_diff_table,
-					ARRAY_SIZE(proto_diff_table));
-	else
-		gpio_configure_pads(nonproto_diff_table,
-					ARRAY_SIZE(nonproto_diff_table));
+	pads = variant_gpio_table(&num);
+	gpio_configure_pads(pads, num);
 
 	mainboard_ec_init();
 }
@@ -58,20 +56,7 @@ static unsigned long mainboard_write_acpi_tables(
 	if (nhlt == NULL)
 		return start_addr;
 
-	/* 2 Channel DMIC array. */
-	if (!nhlt_soc_add_dmic_array(nhlt, 2))
-		printk(BIOS_ERR, "Added 2CH DMIC array.\n");
-
-	/* Dialog for Headset codec.
-	 * Headset codec is bi-directional but uses the same configuration
-	 * settings for render and capture endpoints.
-	 */
-	if (!nhlt_soc_add_da7219(nhlt, AUDIO_LINK_SSP1))
-		printk(BIOS_ERR, "Added Dialog_7219 codec.\n");
-
-	/* MAXIM Smart Amps for left and right speakers. */
-	if (!nhlt_soc_add_max98357(nhlt, AUDIO_LINK_SSP5))
-		printk(BIOS_ERR, "Added Maxim_98357 codec.\n");
+	variant_nhlt_init(nhlt);
 
 	end_addr = nhlt_soc_serialize(nhlt, start_addr);
 

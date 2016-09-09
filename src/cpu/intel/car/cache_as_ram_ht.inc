@@ -87,7 +87,7 @@ addrsize_no_MSR:
 	movl	$0x0f, %edx
 
 	/* Preload high word of address mask (in %edx) for Variable
-	 * MTRRs 0 and 1 and enable local apic at default base.
+	 * MTRRs 0 and 1 and enable local APIC at default base.
 	 */
 addrsize_set_high:
 	xorl	%eax, %eax
@@ -200,7 +200,7 @@ ap_init:
 	post_code(0x27)
 
 	/* Do not disable cache (so BSP can enable it). */
-        movl	%cr0, %eax
+	movl	%cr0, %eax
 	andl	$(~(CR0_CacheDisable | CR0_NoWriteThrough)), %eax
 	movl	%eax, %cr0
 

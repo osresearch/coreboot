@@ -22,7 +22,6 @@ endif
 bootblock-y += prog_loaders.c
 bootblock-y += prog_ops.c
 bootblock-y += cbfs.c
-bootblock-$(CONFIG_COMMON_CBFS_SPI_WRAPPER) += cbfs_spi.c
 bootblock-$(CONFIG_GENERIC_GPIO_LIB) += gpio.c
 bootblock-y += libgcc.c
 bootblock-$(CONFIG_GENERIC_UDELAY) += timer.c
@@ -49,7 +48,6 @@ verstage-y += memcmp.c
 verstage-$(CONFIG_COLLECT_TIMESTAMPS) += timestamp.c
 verstage-y += boot_device.c
 verstage-$(CONFIG_CONSOLE_CBMEM) += cbmem_console.c
-verstage-$(CONFIG_COMMON_CBFS_SPI_WRAPPER) += cbfs_spi.c
 
 ifeq ($(MOCK_TPM),1)
 libverstage-y += mocked_tlcl.c
@@ -80,7 +78,6 @@ $(foreach arch,$(ARCH_SUPPORTED),\
 romstage-y += fmap.c
 romstage-y += delay.c
 romstage-y += cbfs.c
-romstage-$(CONFIG_COMMON_CBFS_SPI_WRAPPER) += cbfs_spi.c
 romstage-$(CONFIG_COMPRESS_RAMSTAGE) += lzma.c lzmadecode.c
 romstage-y += libgcc.c
 romstage-y += memrange.c
@@ -124,7 +121,6 @@ ramstage-y += delay.c
 ramstage-y += fallback_boot.c
 ramstage-y += compute_ip_checksum.c
 ramstage-y += cbfs.c
-ramstage-$(CONFIG_COMMON_CBFS_SPI_WRAPPER) += cbfs_spi.c
 ramstage-y += lzma.c lzmadecode.c
 ramstage-y += stack.c
 ramstage-y += hexstrtobin.c
@@ -158,6 +154,7 @@ postcar-y += imd.c
 bootblock-y += hexdump.c
 ramstage-y += hexdump.c
 romstage-y += hexdump.c
+verstage-y += hexdump.c
 
 bootblock-$(CONFIG_REG_SCRIPT) += reg_script.c
 verstage-$(CONFIG_REG_SCRIPT) += reg_script.c
@@ -221,7 +218,6 @@ smm-y += halt.c
 postcar-y += bootmode.c
 postcar-y += boot_device.c
 postcar-y += cbfs.c
-postcar-$(CONFIG_COMMON_CBFS_SPI_WRAPPER) += cbfs_spi.c
 postcar-y += delay.c
 postcar-y += fmap.c
 postcar-y += gcc.c

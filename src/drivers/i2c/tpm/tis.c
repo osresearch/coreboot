@@ -13,6 +13,7 @@
  * GNU General Public License for more details.
  */
 
+#include <arch/early_variables.h>
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
@@ -26,26 +27,25 @@
 #include <console/console.h>
 
 /* global structure for tpm chip data */
-struct tpm_chip g_chip;
+static struct tpm_chip g_chip CAR_GLOBAL;
 
 #define TPM_CMD_COUNT_BYTE 2
 #define TPM_CMD_ORDINAL_BYTE 6
-#define TPM_VALID_STATUS (1 << 7)
 
 int tis_open(void)
 {
+	struct tpm_chip *chip = car_get_var_ptr(&g_chip);
 	int rc;
 
-	if (g_chip.is_open) {
+	if (chip->is_open) {
 		printk(BIOS_DEBUG, "tis_open() called twice.\n");
 		return -1;
 	}
 
-	rc = tpm_vendor_init(CONFIG_DRIVER_TPM_I2C_BUS,
-				CONFIG_DRIVER_TPM_I2C_ADDR);
-
+	rc = tpm_vendor_init(chip, CONFIG_DRIVER_TPM_I2C_BUS,
+			     CONFIG_DRIVER_TPM_I2C_ADDR);
 	if (rc < 0)
-		g_chip.is_open = 0;
+		chip->is_open = 0;
 
 	if (rc) {
 		return -1;
@@ -56,9 +56,11 @@ int tis_open(void)
 
 int tis_close(void)
 {
-	if (g_chip.is_open) {
-		tpm_vendor_cleanup(&g_chip);
-		g_chip.is_open = 0;
+	struct tpm_chip *chip = car_get_var_ptr(&g_chip);
+
+	if (chip->is_open) {
+		tpm_vendor_cleanup(chip);
+		chip->is_open = 0;
 	}
 
 	return 0;
@@ -66,51 +68,23 @@ int tis_close(void)
 
 int tis_init(void)
 {
-	int bus = CONFIG_DRIVER_TPM_I2C_BUS;
-	int chip = CONFIG_DRIVER_TPM_I2C_ADDR;
-	struct stopwatch sw;
-	uint8_t buf = 0;
-	int ret;
-	long sw_run_duration = 750;
-
-	/*
-	 * Probe TPM. Check if the TPM_ACCESS register's ValidSts bit is set(1)
-	 * If the bit remains clear(0) then claim that init has failed.
-	 */
-	stopwatch_init_msecs_expire(&sw, sw_run_duration);
-	do {
-		ret = i2c_readb(bus, chip, 0, &buf);
-		if (!ret && (buf & TPM_VALID_STATUS)) {
-			sw_run_duration = stopwatch_duration_msecs(&sw);
-			break;
-		}
-	} while (!stopwatch_expired(&sw));
-
-	printk(BIOS_INFO,
-	       "%s: ValidSts bit %s(%d) in TPM_ACCESS register after %ld ms\n",
-	       __func__, (buf & TPM_VALID_STATUS) ? "set" : "clear",
-	       (buf & TPM_VALID_STATUS) >> 7, sw_run_duration);
-
-	/*
-	 * Claim failure if the ValidSts (bit 7) is clear.
-	 */
-	if (!(buf & TPM_VALID_STATUS))
-		return -1;
-
-	return 0;
+	return tpm_vendor_probe(CONFIG_DRIVER_TPM_I2C_BUS,
+				CONFIG_DRIVER_TPM_I2C_ADDR);
 }
 
 static ssize_t tpm_transmit(const uint8_t *buf, size_t bufsiz)
 {
 	int rc;
 	uint32_t count, ordinal;
-
-	struct tpm_chip *chip = &g_chip;
+	struct tpm_chip *chip = car_get_var_ptr(&g_chip);
 
 	memcpy(&count, buf + TPM_CMD_COUNT_BYTE, sizeof(count));
 	count = be32_to_cpu(count);
 	memcpy(&ordinal, buf + TPM_CMD_ORDINAL_BYTE, sizeof(ordinal));
 	ordinal = be32_to_cpu(ordinal);
+
+	if (!chip->vendor.send || !chip->vendor.status || !chip->vendor.cancel)
+		return -1;
 
 	if (count == 0) {
 		printk(BIOS_DEBUG, "tpm_transmit: no data\n");

@@ -28,6 +28,8 @@
  * GNU General Public License for more details.
  */
 
+#include <arch/early_variables.h>
+#include <commonlib/endian.h>
 #include <stdint.h>
 #include <string.h>
 #include <types.h>
@@ -35,15 +37,16 @@
 #include <console/console.h>
 #include <device/i2c.h>
 #include <endian.h>
+#include <timer.h>
 #include "tpm.h"
-
-/* Address of the TPM on the I2C bus */
-#define TPM_I2C_ADDR 0x20
 
 /* max. number of iterations after I2C NAK */
 #define MAX_COUNT 3
 
 #define SLEEP_DURATION 60 /* in usec */
+#define SLEEP_DURATION_LONG 210 /* in usec */
+#define SLEEP_DURATION_SAFE 750 /* in usec */
+#define SLEEP_DURATION_PROBE_MS 1000 /* in msec */
 
 /* max. number of iterations after I2C NAK for 'long' commands
  * we need this especially for sending TPM_READY, since the cleanup after the
@@ -52,21 +55,22 @@
  */
 #define MAX_COUNT_LONG 50
 
-#define SLEEP_DURATION_LONG 210 /* in usec */
-
 /* expected value for DIDVID register */
 #define TPM_TIS_I2C_DID_VID_9635 0x000b15d1L
 #define TPM_TIS_I2C_DID_VID_9645 0x001a15d1L
+#define TPM_TIS_I2C_DID_VID_CR50 0x00281ae0L
 
 enum i2c_chip_type {
 	SLB9635,
 	SLB9645,
+	CR50,
 	UNKNOWN,
 };
 
 static const char * const chip_name[] = {
 	[SLB9635] = "slb9635tt",
 	[SLB9645] = "slb9645tt",
+	[CR50] = "cr50",
 	[UNKNOWN] = "unknown/fallback to slb9635",
 };
 
@@ -74,14 +78,13 @@ static const char * const chip_name[] = {
 struct tpm_inf_dev {
 	int bus;
 	unsigned int addr;
+	unsigned int sleep_short; /* Short sleep duration in usec */
+	unsigned int sleep_long; /* Long sleep duration in usec */
 	uint8_t buf[TPM_BUFSIZE + sizeof(uint8_t)]; // max. buffer size + addr
 	enum i2c_chip_type chip_type;
 };
 
-static struct tpm_inf_dev tpm_dev = {
-	.bus = -1,
-	.addr = TPM_I2C_ADDR
-};
+static struct tpm_inf_dev g_tpm_dev CAR_GLOBAL;
 
 /*
  * iic_tpm_read() - read from TPM register
@@ -99,19 +102,25 @@ static struct tpm_inf_dev tpm_dev = {
  */
 static int iic_tpm_read(uint8_t addr, uint8_t *buffer, size_t len)
 {
+	struct tpm_inf_dev *tpm_dev = car_get_var_ptr(&g_tpm_dev);
 	int rc;
 	int count;
 
-	if (tpm_dev.bus < 0)
+	if (tpm_dev->addr == 0)
 		return -1;
-	if ((tpm_dev.chip_type == SLB9635) || (tpm_dev.chip_type == UNKNOWN)) {
+
+	switch (tpm_dev->chip_type) {
+	case SLB9635:
+	case CR50:
+	case UNKNOWN:
 		/* slb9635 protocol should work in both cases */
 		for (count = 0; count < MAX_COUNT; count++) {
-			rc = i2c_write_raw(tpm_dev.bus, tpm_dev.addr, &addr, 1);
+			rc = i2c_write_raw(tpm_dev->bus, tpm_dev->addr,
+					   &addr, 1);
 			if (rc == 0)
 				break;  /* success, break to skip sleep */
 
-			udelay(SLEEP_DURATION);
+			udelay(tpm_dev->sleep_short);
 		}
 
 		if (rc)
@@ -122,35 +131,39 @@ static int iic_tpm_read(uint8_t addr, uint8_t *buffer, size_t len)
 		 * retrieving the data
 		 */
 		for (count = 0; count < MAX_COUNT; count++) {
-			udelay(SLEEP_DURATION);
-			rc = i2c_read_raw(tpm_dev.bus, tpm_dev.addr,
+			udelay(tpm_dev->sleep_short);
+			rc = i2c_read_raw(tpm_dev->bus, tpm_dev->addr,
 					  buffer, len);
 			if (rc == 0)
 				break;  /* success, break to skip sleep */
 
 		}
-	} else {
+		break;
+
+	default:
+	{
 		/* use a combined read for newer chips
 		 * unfortunately the smbus functions are not suitable due to
 		 * the 32 byte limit of the smbus.
 		 * retries should usually not be needed, but are kept just to
 		 * be safe on the safe side.
 		 */
-		struct i2c_seg aseg = { .read = 0, .chip = tpm_dev.addr,
+		struct i2c_seg aseg = { .read = 0, .chip = tpm_dev->addr,
 					.buf = &addr, .len = 1 };
-		struct i2c_seg dseg = { .read = 1, .chip = tpm_dev.addr,
+		struct i2c_seg dseg = { .read = 1, .chip = tpm_dev->addr,
 					.buf = buffer, .len = len };
 		for (count = 0; count < MAX_COUNT; count++) {
-			rc = i2c_transfer(tpm_dev.bus, &aseg, 1) ||
-			     i2c_transfer(tpm_dev.bus, &dseg, 1);
+			rc = i2c_transfer(tpm_dev->bus, &aseg, 1) ||
+			     i2c_transfer(tpm_dev->bus, &dseg, 1);
 			if (rc == 0)
 				break;  /* break here to skip sleep */
-			udelay(SLEEP_DURATION);
+			udelay(tpm_dev->sleep_short);
 		}
+	}
 	}
 
 	/* take care of 'guard time' */
-	udelay(SLEEP_DURATION);
+	udelay(tpm_dev->sleep_short);
 	if (rc)
 		return -1;
 
@@ -161,6 +174,7 @@ static int iic_tpm_write_generic(uint8_t addr, uint8_t *buffer, size_t len,
 				unsigned int sleep_time,
 				uint8_t max_count)
 {
+	struct tpm_inf_dev *tpm_dev = car_get_var_ptr(&g_tpm_dev);
 	int rc = 0;
 	int count;
 
@@ -170,14 +184,14 @@ static int iic_tpm_write_generic(uint8_t addr, uint8_t *buffer, size_t len,
 	}
 
 	/* prepare send buffer */
-	tpm_dev.buf[0] = addr;
-	memcpy(&(tpm_dev.buf[1]), buffer, len);
+	tpm_dev->buf[0] = addr;
+	memcpy(&(tpm_dev->buf[1]), buffer, len);
 
-	if (tpm_dev.bus < 0)
+	if (tpm_dev->addr == 0)
 		return -1;
 	for (count = 0; count < max_count; count++) {
-		rc = i2c_write_raw(tpm_dev.bus, tpm_dev.addr,
-				   tpm_dev.buf, len + 1);
+		rc = i2c_write_raw(tpm_dev->bus, tpm_dev->addr,
+				   tpm_dev->buf, len + 1);
 		if (rc == 0)
 			break;  /* success, break to skip sleep */
 
@@ -185,7 +199,7 @@ static int iic_tpm_write_generic(uint8_t addr, uint8_t *buffer, size_t len,
 	}
 
 	/* take care of 'guard time' */
-	udelay(SLEEP_DURATION);
+	udelay(tpm_dev->sleep_short);
 	if (rc)
 		return -1;
 
@@ -210,7 +224,8 @@ static int iic_tpm_write_generic(uint8_t addr, uint8_t *buffer, size_t len,
  */
 static int iic_tpm_write(uint8_t addr, uint8_t *buffer, size_t len)
 {
-	return iic_tpm_write_generic(addr, buffer, len, SLEEP_DURATION,
+	struct tpm_inf_dev *tpm_dev = car_get_var_ptr(&g_tpm_dev);
+	return iic_tpm_write_generic(addr, buffer, len, tpm_dev->sleep_short,
 			MAX_COUNT);
 }
 
@@ -220,7 +235,8 @@ static int iic_tpm_write(uint8_t addr, uint8_t *buffer, size_t len)
  * */
 static int iic_tpm_write_long(uint8_t addr, uint8_t *buffer, size_t len)
 {
-	return iic_tpm_write_generic(addr, buffer, len, SLEEP_DURATION_LONG,
+	struct tpm_inf_dev *tpm_dev = car_get_var_ptr(&g_tpm_dev);
+	return iic_tpm_write_generic(addr, buffer, len, tpm_dev->sleep_long,
 			MAX_COUNT_LONG);
 }
 
@@ -480,55 +496,309 @@ out_err:
 	return -1;
 }
 
-static struct tpm_vendor_specific tpm_tis_i2c = {
-	.status = tpm_tis_i2c_status,
-	.recv = tpm_tis_i2c_recv,
-	.send = tpm_tis_i2c_send,
-	.cancel = tpm_tis_i2c_ready,
-	.req_complete_mask = TPM_STS_DATA_AVAIL | TPM_STS_VALID,
-	.req_complete_val = TPM_STS_DATA_AVAIL | TPM_STS_VALID,
-	.req_canceled = TPM_STS_COMMAND_READY,
-};
+/*
+ * cr50 is a TPM 2.0 capable device that requries special
+ * handling for the I2C interface.
+ *
+ * - Timeouts need to be longer
+ * - Must use the older SLB9635 style write+wait+read read protocol
+ * - All 4 bytes of status register must be read at once
+ * - Burst count max is 63 bytes, and burst count behaves
+ *   slightly differently than other I2C TPMs
+ * - When reading from FIFO the full burstcnt must be read
+ *   instead of just reading header and determining the remainder
+ */
+
+/* cr50 max burst count */
+#define CR50_MAX_BURSTCOUNT 63
+
+/* cr50 requires all 4 bytes of status register to be read */
+static uint8_t cr50_tis_i2c_status(struct tpm_chip *chip)
+{
+	uint8_t buf[4];
+	if (iic_tpm_read(TPM_STS(chip->vendor.locality),
+			 buf, sizeof(buf)) < 0) {
+		printk(BIOS_ERR, "%s: Failed to read status\n", __func__);
+		return 0;
+	}
+	return buf[0];
+}
+
+/* cr50 requires all 4 bytes of status register to be written */
+static void cr50_tis_i2c_ready(struct tpm_chip *chip)
+{
+	uint8_t buf[4] = { TPM_STS_COMMAND_READY };
+	iic_tpm_write_long(TPM_STS(chip->vendor.locality), buf, sizeof(buf));
+}
+
+/* cr50 uses bytes 3:2 of status register for burst count and
+ * all 4 bytes must be read */
+static int cr50_wait_burst_status(struct tpm_chip *chip, uint8_t mask,
+				  size_t *burst, int *status)
+{
+	uint8_t buf[4];
+	struct stopwatch sw;
+
+	stopwatch_init_usecs_expire(&sw, 10 * SLEEP_DURATION_SAFE);
+
+	while (!stopwatch_expired(&sw)) {
+		if (iic_tpm_read(TPM_STS(chip->vendor.locality),
+				 buf, sizeof(buf)) != 0) {
+			printk(BIOS_WARNING, "%s: Read failed\n", __func__);
+			udelay(SLEEP_DURATION_SAFE);
+			continue;
+		}
+
+		*status = buf[0];
+		*burst = read_le16(&buf[1]);
+
+		/* Check if mask matches and burst is valid */
+		if ((*status & mask) == mask &&
+		    *burst > 0 && *burst <= CR50_MAX_BURSTCOUNT)
+			return 0;
+
+		udelay(SLEEP_DURATION_SAFE);
+	}
+
+	printk(BIOS_ERR, "%s: Timeout reading burst and status\n", __func__);
+	return -1;
+}
+
+static int cr50_tis_i2c_recv(struct tpm_chip *chip, uint8_t *buf,
+			     size_t buf_len)
+{
+	size_t burstcnt, current, len, expected;
+	uint8_t addr = TPM_DATA_FIFO(chip->vendor.locality);
+	int status;
+	int ret = -1;
+
+	if (buf_len < TPM_HEADER_SIZE)
+		goto out;
+
+	if (cr50_wait_burst_status(chip, TPM_STS_VALID, &burstcnt, &status) < 0)
+		goto out;
+	if (!(status & TPM_STS_DATA_AVAIL)) {
+		printk(BIOS_ERR, "%s: First chunk not available\n", __func__);
+		goto out;
+	}
+
+	/* Read first chunk of burstcnt bytes */
+	if (iic_tpm_read(addr, buf, burstcnt) != 0) {
+		printk(BIOS_ERR, "%s: Read failed\n", __func__);
+		goto out;
+	}
+
+	/* Determine expected data in the return buffer */
+	expected = read_be32(buf + TPM_RSP_SIZE_BYTE);
+	if (expected > buf_len) {
+		printk(BIOS_ERR, "%s: Too much data: %zu > %zu\n",
+		       __func__, expected, buf_len);
+		goto out;
+	}
+
+	/* Now read the rest of the data */
+	current = burstcnt;
+	while (current < expected) {
+		/* Read updated burst count and check status */
+		if (cr50_wait_burst_status(chip, TPM_STS_VALID,
+					   &burstcnt, &status) < 0)
+			goto out;
+		if (!(status & TPM_STS_DATA_AVAIL)) {
+			printk(BIOS_ERR, "%s: Data not available\n", __func__);
+			goto out;
+		}
+
+		len = min(burstcnt, expected - current);
+		if (iic_tpm_read(addr, buf + current, len) != 0) {
+			printk(BIOS_ERR, "%s: Read failed\n", __func__);
+			goto out;
+		}
+
+		current += len;
+	}
+
+	/* Ensure TPM is done reading data */
+	if (cr50_wait_burst_status(chip, TPM_STS_VALID, &burstcnt, &status) < 0)
+		goto out;
+	if (status & TPM_STS_DATA_AVAIL) {
+		printk(BIOS_ERR, "%s: Data still available\n", __func__);
+		goto out;
+	}
+
+	ret = current;
+
+out:
+	cr50_tis_i2c_ready(chip);
+	return ret;
+}
+
+static int cr50_tis_i2c_send(struct tpm_chip *chip, uint8_t *buf, size_t len)
+{
+	int status;
+	size_t burstcnt, limit, sent = 0;
+	uint8_t tpm_go[4] = { TPM_STS_GO };
+
+	if (len > TPM_BUFSIZE)
+		return -1;
+
+	/* Wait until TPM is ready for a command */
+	status = cr50_tis_i2c_status(chip);
+	if (!(status & TPM_STS_COMMAND_READY)) {
+		cr50_tis_i2c_ready(chip);
+		if (cr50_wait_burst_status(chip, TPM_STS_COMMAND_READY,
+					   &burstcnt, &status) < 0)
+			goto out;
+	}
+
+	while (len > 0) {
+		/* Read burst count and check status */
+		if (cr50_wait_burst_status(chip, TPM_STS_VALID,
+					   &burstcnt, &status) < 0)
+			goto out;
+		if (sent > 0 && !(status & TPM_STS_DATA_EXPECT)) {
+			printk(BIOS_ERR, "%s: Data not expected\n", __func__);
+			goto out;
+		}
+
+		/* Use burstcnt - 1 to account for the address byte
+		 * that is inserted by iic_tpm_write() */
+		limit = min(burstcnt - 1, len);
+		if (iic_tpm_write(TPM_DATA_FIFO(chip->vendor.locality),
+				  &buf[sent], limit) != 0) {
+			printk(BIOS_ERR, "%s: Write failed\n", __func__);
+			goto out;
+		}
+
+		sent += limit;
+		len -= limit;
+	}
+
+	/* Ensure TPM is not expecting more data */
+	if (cr50_wait_burst_status(chip, TPM_STS_VALID, &burstcnt, &status) < 0)
+		goto out;
+	if (status & TPM_STS_DATA_EXPECT) {
+		printk(BIOS_ERR, "%s: Data still expected\n", __func__);
+		goto out;
+	}
+
+	/* Start the TPM command */
+	if (iic_tpm_write(TPM_STS(chip->vendor.locality), tpm_go,
+			  sizeof(tpm_go)) < 0) {
+		printk(BIOS_ERR, "%s: Start command failed\n", __func__);
+		goto out;
+	}
+	return sent;
+
+out:
+	cr50_tis_i2c_ready(chip);
+	return -1;
+}
 
 /* Initialization of I2C TPM */
 
-int tpm_vendor_init(unsigned bus, uint32_t dev_addr)
+int tpm_vendor_probe(unsigned bus, uint32_t addr)
 {
+	struct tpm_inf_dev *tpm_dev = car_get_var_ptr(&g_tpm_dev);
+	struct stopwatch sw;
+	uint8_t buf = 0;
+	int ret;
+	long sw_run_duration = SLEEP_DURATION_PROBE_MS;
+
+	tpm_dev->chip_type = UNKNOWN;
+	tpm_dev->bus = bus;
+	tpm_dev->addr = addr;
+	tpm_dev->sleep_short = SLEEP_DURATION_SAFE;
+	tpm_dev->sleep_long = SLEEP_DURATION_SAFE * 2;
+
+	/*
+	 * Probe TPM. Check if the TPM_ACCESS register's ValidSts bit is set(1)
+	 * If the bit remains clear(0) then claim that init has failed.
+	 */
+	stopwatch_init_msecs_expire(&sw, sw_run_duration);
+	do {
+		ret = iic_tpm_read(TPM_ACCESS(0), &buf, 1);
+		if (!ret && (buf & TPM_STS_VALID)) {
+			sw_run_duration = stopwatch_duration_msecs(&sw);
+			break;
+		}
+	} while (!stopwatch_expired(&sw));
+
+	printk(BIOS_INFO,
+	       "%s: ValidSts bit %s(%d) in TPM_ACCESS register after %ld ms\n",
+	       __func__, (buf & TPM_STS_VALID) ? "set" : "clear",
+	       (buf & TPM_STS_VALID) >> 7, sw_run_duration);
+
+	/*
+	 * Claim failure if the ValidSts (bit 7) is clear.
+	 */
+	if (!(buf & TPM_STS_VALID))
+		return -1;
+
+	return 0;
+}
+
+int tpm_vendor_init(struct tpm_chip *chip, unsigned bus, uint32_t dev_addr)
+{
+	struct tpm_inf_dev *tpm_dev = car_get_var_ptr(&g_tpm_dev);
 	uint32_t vendor;
-	unsigned int old_addr;
-	struct tpm_chip *chip;
-	extern struct tpm_chip g_chip;
 
-	old_addr = tpm_dev.addr;
-	if (dev_addr != 0)
-		tpm_dev.addr = dev_addr;
-	tpm_dev.bus = bus;
+	if (dev_addr == 0) {
+		printk(BIOS_ERR, "%s: missing device address\n", __func__);
+		return -1;
+	}
 
-	chip = &g_chip;
-	memcpy(&chip->vendor, &tpm_tis_i2c, sizeof(struct tpm_vendor_specific));
+	tpm_dev->bus = bus;
+	tpm_dev->addr = dev_addr;
+
+	/* Use conservative values to read chip id */
+	tpm_dev->sleep_short = SLEEP_DURATION_SAFE;
+	tpm_dev->sleep_long = SLEEP_DURATION_SAFE * 2;
+
+	memset(&chip->vendor, 0, sizeof(struct tpm_vendor_specific));
 	chip->is_open = 1;
+
+	chip->vendor.req_complete_mask = TPM_STS_DATA_AVAIL | TPM_STS_VALID;
+	chip->vendor.req_complete_val = TPM_STS_DATA_AVAIL | TPM_STS_VALID;
+	chip->vendor.req_canceled = TPM_STS_COMMAND_READY;
 
 	/* Disable interrupts (not supported) */
 	chip->vendor.irq = 0;
 
 	if (request_locality(chip, 0) != 0)
-		goto out_err;
+		return -1;
 
 	/* Read four bytes from DID_VID register */
 	if (iic_tpm_read(TPM_DID_VID(0), (uint8_t *)&vendor, 4) < 0)
-		goto out_release;
+		goto out_err;
 
 	if (vendor == TPM_TIS_I2C_DID_VID_9645) {
-		tpm_dev.chip_type = SLB9645;
+		tpm_dev->chip_type = SLB9645;
 	} else if (be32_to_cpu(vendor) == TPM_TIS_I2C_DID_VID_9635) {
-		tpm_dev.chip_type = SLB9635;
+		tpm_dev->chip_type = SLB9635;
+	} else if (vendor == TPM_TIS_I2C_DID_VID_CR50) {
+		tpm_dev->chip_type = CR50;
 	} else {
 		printk(BIOS_DEBUG, "Vendor ID 0x%08x not recognized.\n", vendor);
-		goto out_release;
+		goto out_err;
 	}
 
-	printk(BIOS_DEBUG, "1.2 TPM (chip type %s device-id 0x%X)\n",
-		 chip_name[tpm_dev.chip_type], vendor >> 16);
+	if (tpm_dev->chip_type == CR50) {
+		chip->vendor.status = &cr50_tis_i2c_status;
+		chip->vendor.recv = &cr50_tis_i2c_recv;
+		chip->vendor.send = &cr50_tis_i2c_send;
+		chip->vendor.cancel = &cr50_tis_i2c_ready;
+	} else {
+		tpm_dev->sleep_short = SLEEP_DURATION;
+		tpm_dev->sleep_long = SLEEP_DURATION_LONG;
+		chip->vendor.status = &tpm_tis_i2c_status;
+		chip->vendor.recv = &tpm_tis_i2c_recv;
+		chip->vendor.send = &tpm_tis_i2c_send;
+		chip->vendor.cancel = &tpm_tis_i2c_ready;
+	}
+
+	printk(BIOS_DEBUG, "I2C TPM %u:%02x (chip type %s device-id 0x%X)\n",
+	       tpm_dev->bus, tpm_dev->addr,
+	       chip_name[tpm_dev->chip_type], vendor >> 16);
 
 	/*
 	 * A timeout query to TPM can be placed here.
@@ -537,11 +807,8 @@ int tpm_vendor_init(unsigned bus, uint32_t dev_addr)
 
 	return 0;
 
-out_release:
-	release_locality(chip, 0, 1);
-
 out_err:
-	tpm_dev.addr = old_addr;
+	release_locality(chip, 0, 1);
 	return -1;
 }
 

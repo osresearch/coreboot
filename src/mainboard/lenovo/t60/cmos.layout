@@ -43,7 +43,7 @@ entries
 # -----------------------------------------------------------------
 # RTC_BOOT_BYTE (coreboot hardcoded)
 384          1       e       4        boot_option
-388          4       r       0        reboot_bits
+388          4       h       0        reboot_counter
 #390          2       r       0        unused?
 
 # -----------------------------------------------------------------
@@ -57,7 +57,9 @@ entries
 # coreboot config options: southbridge
 408          1       e       1        nmi
 #409          2       e       7        power_on_after_fail
-#411          5       r       0        unused
+
+# coreboot config options: northbridge
+411         3       e       11       gfx_uma_size
 
 # coreboot config options: bootloader
 416        512       s       0        boot_devices
@@ -74,7 +76,7 @@ entries
 984         16       h       0        check_sum
 #1000        24       r       0        amd_reserved
 
-# ram initialization internal data
+# RAM initialization internal data
 1024         8       r       0        C0WL0REOST
 1032         8       r       0        C1WL0REOST
 1040         8       r       0        RCVENMT
@@ -127,6 +129,14 @@ enumerations
 8     1     Yes
 9     0	    Secondary
 9     1	    Primary
+11    0     1M
+11    1     4M
+11    2     8M
+11    3     16M
+11    4     32M
+11    5     48M
+11    6     64M
+
 # -----------------------------------------------------------------
 checksums
 

@@ -17,6 +17,7 @@
  */
 
 #include <device/pci_def.h>
+#include <commonlib/helpers.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/cr.h>
@@ -70,6 +71,7 @@ clear_var_mtrr:
 
 	post_code(0x24)
 
+#if ((CONFIG_DCACHE_RAM_SIZE & (CONFIG_DCACHE_RAM_SIZE - 1)) == 0)
 	/* Configure CAR region as write-back (WB) */
 	mov	$MTRR_PHYS_BASE(0), %ecx
 	mov	$CONFIG_DCACHE_RAM_BASE, %eax
@@ -82,6 +84,31 @@ clear_var_mtrr:
 	mov	$~(CONFIG_DCACHE_RAM_SIZE - 1), %eax	/* size mask */
 	or	$MTRR_PHYS_MASK_VALID, %eax
 	wrmsr
+#elif (CONFIG_DCACHE_RAM_SIZE == 768 * KiB) /* 768 KiB */
+	mov	$MTRR_PHYS_BASE(0), %ecx
+	mov	$CONFIG_DCACHE_RAM_BASE, %eax
+	or	$MTRR_TYPE_WRBACK, %eax
+	xor	%edx,%edx
+	wrmsr
+
+	mov	$MTRR_PHYS_MASK(0), %ecx
+	mov	$~(512 * KiB - 1), %eax	/* size mask */
+	or	$MTRR_PHYS_MASK_VALID, %eax
+	wrmsr
+
+	mov	$MTRR_PHYS_BASE(1), %ecx
+	mov	$(CONFIG_DCACHE_RAM_BASE + 512 * KiB), %eax
+	or	$MTRR_TYPE_WRBACK, %eax
+	xor	%edx,%edx
+	wrmsr
+
+	mov	$MTRR_PHYS_MASK(1), %ecx
+	mov	$~(256 * KiB - 1), %eax	/* size mask */
+	or	$MTRR_PHYS_MASK_VALID, %eax
+	wrmsr
+#else
+#error "DCACHE_RAM_SIZE is not a power of 2 and setup code is missing"
+#endif
 
 	post_code(0x25)
 
@@ -97,12 +124,61 @@ clear_var_mtrr:
 	invd
 	mov	%eax, %cr0
 
+#if IS_ENABLED(CONFIG_CAR_NEM)
 	/* Disable cache eviction (setup stage) */
 	mov	$MSR_EVICT_CTL, %ecx
 	rdmsr
 	or	$0x1, %eax
 	wrmsr
+#else
+	/*
+	 * Disable both L1 and L2 prefetcher. For yet-to-understood reason,
+	 * prefetchers slow down filling cache with rep stos in CQOS mode.
+	 */
+	mov	$MSR_PREFETCH_CTL, %ecx
+	rdmsr
+	or	$(PREFETCH_L1_DISABLE | PREFETCH_L2_DISABLE), %eax
+	wrmsr
+#endif
 
+#if IS_ENABLED(CONFIG_CAR_CQOS)
+#if (CONFIG_DCACHE_RAM_SIZE == L2_CACHE_SIZE)
+/*
+ * If CAR size is set to full L2 size, mask is calculated as all-zeros.
+ * This is not supported by the CPU/uCode.
+ */
+#error "CQOS CAR may not use whole L2 cache area"
+#endif
+	/* Calculate how many bits to be used for CAR */
+	xor	%edx, %edx
+	mov	$CONFIG_DCACHE_RAM_SIZE, %eax	/* dividend */
+	mov	$CACHE_QOS_SIZE_PER_BIT, %ecx	/* divisor */
+	div	%ecx				/* result is in eax */
+	mov	%eax, %ecx			/* save to ecx */
+	mov	$1, %ebx
+	shl	%cl, %ebx
+	sub	$1, %ebx			/* resulting mask is is in ebx */
+
+	/* Set this mask for initial cache fill */
+	mov	$MSR_L2_QOS_MASK(0), %ecx
+	rdmsr
+	mov	%bl, %al
+	wrmsr
+
+	/* Set CLOS selector to 0 */
+	mov	$MSR_IA32_PQR_ASSOC, %ecx
+	rdmsr
+	and	$~IA32_PQR_ASSOC_MASK, %edx	/* select mask 0 */
+	wrmsr
+
+	/* We will need to block CAR region from evicts */
+	mov	$MSR_L2_QOS_MASK(1), %ecx
+	rdmsr
+	/* Invert bits that are to be used for cache */
+	mov	%bl, %al
+	xor	$~0, %al			/* invert 8 bits */
+	wrmsr
+#endif
 	post_code(0x26)
 
 	/* Clear the cache memory region. This will also fill up the cache */
@@ -113,11 +189,26 @@ clear_var_mtrr:
 
 	post_code(0x27)
 
+#if IS_ENABLED(CONFIG_CAR_NEM)
 	/* Disable cache eviction (run stage) */
 	mov	$MSR_EVICT_CTL, %ecx
 	rdmsr
 	or	$0x2, %eax
 	wrmsr
+#else
+	/* Cache is populated. Use mask 1 that will block evicts */
+	mov	$MSR_IA32_PQR_ASSOC, %ecx
+	rdmsr
+	and	$~IA32_PQR_ASSOC_MASK, %edx	/* clear index bits first */
+	or	$1, %edx			/* select mask 1 */
+	wrmsr
+
+	/* Enable prefetchers */
+	mov	$MSR_PREFETCH_CTL, %ecx
+	rdmsr
+	and	$~(PREFETCH_L1_DISABLE | PREFETCH_L2_DISABLE), %eax
+	wrmsr
+#endif
 
 	post_code(0x28)
 

@@ -49,6 +49,7 @@ smm-y += uart_early.c
 ramstage-$(CONFIG_HAVE_ACPI_TABLES) += acpi.c
 ramstage-y += cpu.c
 ramstage-y += chip.c
+ramstage-y += elog.c
 ramstage-y += dsp.c
 ramstage-y += gpio.c
 ramstage-y += graphics.c
@@ -92,6 +93,7 @@ verstage-y += reset.c
 verstage-y += spi.c
 
 CPPFLAGS_common += -I$(src)/soc/intel/apollolake/include
+CPPFLAGS_common += -I$(src)/vendorcode/intel/fsp/fsp2_0/apollolake
 
 # Since FSP-M runs in CAR we need to relocate it to a specific address
 $(CONFIG_FSP_M_CBFS)-options := -b $(CONFIG_FSP_M_ADDR)
@@ -125,7 +127,7 @@ DMIC_2CH_48KHZ_16B = dmic-2ch-48khz-16b.bin
 MAX98357_RENDER = max98357-render-2ch-48khz-24b.bin
 DA7219_RENDER_CAPTURE = dialog-2ch-48khz-24b.bin
 
-cbfs-files-$(CONFIG_NHLT_DMIC_2CH) += $(DMIC_2CH_48KHZ_16B)
+cbfs-files-$(CONFIG_NHLT_DMIC_2CH_16B) += $(DMIC_2CH_48KHZ_16B)
 $(DMIC_2CH_48KHZ_16B)-file := $(NHLT_BLOB_PATH)/$(DMIC_2CH_48KHZ_16B)
 $(DMIC_2CH_48KHZ_16B)-type := raw
 

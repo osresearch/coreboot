@@ -16,13 +16,24 @@
 #ifndef _SOC_SKYLAKE_BOOTBLOCK_H_
 #define _SOC_SKYLAKE_BOOTBLOCK_H_
 
+#if IS_ENABLED(CONFIG_PLATFORM_USES_FSP1_1)
+#include <fsp/bootblock.h>
+#else
+inline void bootblock_fsp_temp_ram_init(void) {}
+#endif
+
 /* Bootblock pre console init programing */
 void bootblock_cpu_init(void);
 void bootblock_pch_early_init(void);
 void bootblock_systemagent_early_init(void);
-
 void pch_uart_init(void);
+
 /* Bootblock post console init programing */
-void pch_enable_lpc(void);
+void enable_smbus(void);
+void i2c_early_init(void);
+void pch_early_init(void);
+void report_platform_info(void);
+void report_memory_config(void);
+void set_max_freq(void);
 
 #endif

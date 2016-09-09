@@ -211,7 +211,7 @@ static void x86emuOp_genop_byte_RM_R(u8 op1)
     DECODE_PRINTF(x86emu_GenOpName[op1]);
     DECODE_PRINTF("\t");
     FETCH_DECODE_MODRM(mod, rh, rl);
-    if(mod<3)
+    if (mod<3)
         { destoffset = decode_rmXX_address(mod,rl);
         DECODE_PRINTF(",");
         destval = fetch_data_byte(destoffset);
@@ -251,7 +251,7 @@ static void x86emuOp_genop_word_RM_R(u8 op1)
     DECODE_PRINTF("\t");
     FETCH_DECODE_MODRM(mod, rh, rl);
 
-    if(mod<3) {
+    if (mod<3) {
         destoffset = decode_rmXX_address(mod,rl);
         if (M.x86.mode & SYSMODE_PREFIX_DATA) {
             u32 destval;
@@ -4986,7 +4986,7 @@ static void x86emuOp_opcFE_byte_RM(u8 X86EMU_UNUSED(op1))
         case 5:
         case 6:
         case 7:
-            DECODE_PRINTF2("ILLEGAL OP MAJOR OP 0xFE MINOR OP %x \n", mod);
+            DECODE_PRINTF2("ILLEGAL OP MAJOR OP 0xFE MINOR OP %x\n", mod);
             HALT_SYS();
             break;
         }
@@ -5183,7 +5183,7 @@ static void x86emuOp_opcFF_word_RM(u8 X86EMU_UNUSED(op1))
             M.x86.R_IP = *destreg;
             break;
         case 3:         /* jmp far ptr ... */
-            DECODE_PRINTF("OPERATION UNDEFINED 0XFF \n");
+            DECODE_PRINTF("OPERATION UNDEFINED 0XFF\n");
             TRACE_AND_STEP();
             HALT_SYS();
             break;
@@ -5195,7 +5195,7 @@ static void x86emuOp_opcFF_word_RM(u8 X86EMU_UNUSED(op1))
             M.x86.R_IP = (u16) (*destreg);
             break;
         case 5:         /* jmp far ptr ... */
-            DECODE_PRINTF("OPERATION UNDEFINED 0XFF \n");
+            DECODE_PRINTF("OPERATION UNDEFINED 0XFF\n");
             TRACE_AND_STEP();
             HALT_SYS();
             break;

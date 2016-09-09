@@ -15,11 +15,14 @@
  */
 
 #include <arch/acpi.h>
+#include <baseboard/variants.h>
 #include <cpu/x86/smm.h>
 #include <ec/google/chromeec/smm.h>
 #include <soc/pm.h>
 #include <soc/smm.h>
-#include "ec.h"
+#include <soc/gpio.h>
+#include <variant/ec.h>
+#include <variant/gpio.h>
 
 void mainboard_smi_gpi_handler(const struct gpi_status *sts)
 {
@@ -29,6 +32,12 @@ void mainboard_smi_gpi_handler(const struct gpi_status *sts)
 
 void mainboard_smi_sleep(u8 slp_typ)
 {
+	const struct pad_config *pads;
+	size_t num;
+
+	pads = variant_sleep_gpio_table(&num);
+	gpio_configure_pads(pads, num);
+
 	if (slp_typ == ACPI_S3)
 		enable_gpe(GPIO_TIER_1_SCI);
 

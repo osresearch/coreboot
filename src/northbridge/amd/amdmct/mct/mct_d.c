@@ -644,7 +644,7 @@ static void HTMemMapInit_D(struct MCTStatStruc *pMCTstat,
 		devx = pDCTstat->dev_map;
 
 		if (pDCTstat->NodePresent) {
-			printk(BIOS_DEBUG, " Copy dram map from Node 0 to Node %02x \n", Node);
+			printk(BIOS_DEBUG, " Copy dram map from Node 0 to Node %02x\n", Node);
 			reg = 0x40;		/*Dram Base 0*/
 			do {
 				val = Get_NB32(dev, reg);
@@ -892,7 +892,7 @@ static void StartupDCT_D(struct MCTStatStruc *pMCTstat,
 		byte = mctGet_NVbits(NV_DQSTrainCTL);
 		if (byte == 1) {
 			/* Enable DQSRcvEn training mode */
-			print_t("\t\t\tStartupDCT_D: DqsRcvEnTrain set \n");
+			print_t("\t\t\tStartupDCT_D: DqsRcvEnTrain set\n");
 			reg = 0x78 + reg_off;
 			val = Get_NB32(dev, reg);
 			/* Setting this bit forces a 1T window with hard left
@@ -903,7 +903,7 @@ static void StartupDCT_D(struct MCTStatStruc *pMCTstat,
 			Set_NB32(dev, reg, val);
 		}
 		mctHookBeforeDramInit();	/* generalized Hook */
-		print_t("\t\t\tStartupDCT_D: DramInit \n");
+		print_t("\t\t\tStartupDCT_D: DramInit\n");
 		mct_DramInit(pMCTstat, pDCTstat, dct);
 		AfterDramInit_D(pDCTstat, dct);
 		mctHookAfterDramInit();		/* generalized Hook*/
@@ -925,7 +925,7 @@ static void ClearDCT_D(struct MCTStatStruc *pMCTstat,
 		reg_end = 0xA4 + 0x100 * dct;
 	}
 
-	while(reg < reg_end) {
+	while (reg < reg_end) {
 		Set_NB32(dev, reg, val);
 		reg += 4;
 	}
@@ -1694,7 +1694,7 @@ static u8 AutoConfig_D(struct MCTStatStruc *pMCTstat,
 				p = Tab_S1CLKDis;
 
 			dword = 0;
-			while(dword < MAX_DIMMS_SUPPORTED) {
+			while (dword < MAX_DIMMS_SUPPORTED) {
 				val = p[dword];
 				print_tx("DramTimingLo: val=", val);
 				if (!(pDCTstat->DIMMValid & (1<<val)))
@@ -3518,7 +3518,7 @@ static void InitPhyCompensation(struct MCTStatStruc *pMCTstat,
 
 static void WaitRoutine_D(u32 time)
 {
-	while(time) {
+	while (time) {
 		_EXECFENCE;
 		time--;
 	}
@@ -3877,7 +3877,7 @@ static void mct_ResetDLL_D(struct MCTStatStruc *pMCTstat,
 
 	addr = HWCR;
 	_RDMSR(addr, &lo, &hi);
-	if(lo & (1<<17)) {		/* save the old value */
+	if (lo & (1<<17)) {		/* save the old value */
 		wrap32dis = 1;
 	}
 	lo |= (1<<17);			/* HWCR.wrap32dis */
@@ -3906,7 +3906,7 @@ static void mct_ResetDLL_D(struct MCTStatStruc *pMCTstat,
 			}
 		}
 	}
-	if(!wrap32dis) {
+	if (!wrap32dis) {
 		addr = HWCR;
 		_RDMSR(addr, &lo, &hi);
 		lo &= ~(1<<17);		/* restore HWCR.wrap32dis */

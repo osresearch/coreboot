@@ -774,13 +774,13 @@ static void dll_ddr2(struct sysinfo *s)
 		if (!CHANNEL_IS_POPULATED(s->dimms, i)) {
 			printk(BIOS_DEBUG, "No dimms in channel %d\n", i);
 			reg8 = 0x3f;
-		} else if(ONLY_DIMMA_IS_POPULATED(s->dimms, i)) {
+		} else if (ONLY_DIMMA_IS_POPULATED(s->dimms, i)) {
 			printk(BIOS_DEBUG, "DimmA populated only in channel %d\n", i);
 			reg8 = 0x38;
-		} else if(ONLY_DIMMB_IS_POPULATED(s->dimms, i)) {
+		} else if (ONLY_DIMMB_IS_POPULATED(s->dimms, i)) {
 			printk(BIOS_DEBUG, "DimmB populated only in channel %d\n", i);
 			reg8 =  0x7;
-		} else if(BOTH_DIMMS_ARE_POPULATED(s->dimms, i)) {
+		} else if (BOTH_DIMMS_ARE_POPULATED(s->dimms, i)) {
 			printk(BIOS_DEBUG, "Both dimms populated in channel %d\n", i);
 			reg8 = 0;
 		} else {
@@ -960,7 +960,7 @@ static void dll_ddr2(struct sysinfo *s)
 		i = (i + 10) % 14;
 		MCHBAR8(0x1c8) = (MCHBAR8(0x1c8) & ~0x1f) | i;
 		MCHBAR8(0x180) = MCHBAR8(0x180) | 0x10;
-		while(MCHBAR8(0x180) & 0x10);
+		while (MCHBAR8(0x180) & 0x10);
 	}
 
 	reg8 = MCHBAR8(0x188) & ~1;
@@ -1633,7 +1633,7 @@ static void mmap_ddr2(struct sysinfo *s)
 	gfxsize = ggc2uma[(ggc & 0xf0) >> 4];
 	gttsize = ggc2gtt[(ggc & 0xf00) >> 8];
 	tsegsize = 1; // 1MB TSEG
-	mmiosize = 0x400; // 1GB MMIO
+	mmiosize = 0x800; // 2GB MMIO
 	tom = s->channel_capacity[0] + s->channel_capacity[1] - ME_UMA_SIZEMB;
 	tolud = MIN(0x1000 - mmiosize, tom);
 

@@ -4,6 +4,7 @@
  * found in the LICENSE file.
  */
 
+#include <arch/early_variables.h>
 #include <console/console.h>
 #include <endian.h>
 #include <lib/tpm2_tlcl_structures.h>
@@ -24,10 +25,12 @@ static void *tpm_process_command(TPM_CC command, void *command_body)
 	ssize_t out_size;
 	size_t in_size;
 	/* Command/response buffer. */
-	static uint8_t cr_buffer[TPM_BUFFER_SIZE];
+	static uint8_t cr_buffer[TPM_BUFFER_SIZE] CAR_GLOBAL;
+
+	uint8_t *cr_buffer_ptr = car_get_var_ptr(cr_buffer);
 
 	out_size = tpm_marshal_command(command, command_body,
-				       cr_buffer, sizeof(cr_buffer));
+				       cr_buffer_ptr, sizeof(cr_buffer));
 	if (out_size < 0) {
 		printk(BIOS_ERR, "command %#x, cr size %zd\n",
 		       command, out_size);
@@ -35,13 +38,13 @@ static void *tpm_process_command(TPM_CC command, void *command_body)
 	}
 
 	in_size = sizeof(cr_buffer);
-	if (tis_sendrecv(cr_buffer, out_size,
-			 cr_buffer, &in_size)) {
+	if (tis_sendrecv(cr_buffer_ptr, out_size,
+			 cr_buffer_ptr, &in_size)) {
 		printk(BIOS_ERR, "tpm transaction failed\n");
 		return NULL;
 	}
 
-	return tpm_unmarshal_response(command, cr_buffer, in_size);
+	return tpm_unmarshal_response(command, cr_buffer_ptr, in_size);
 }
 
 
@@ -287,7 +290,7 @@ uint32_t tlcl_define_space(uint32_t space_index, size_t space_size)
 	 * This policy digest was obtained using TPM2_PolicyPCR selecting only
 	 * PCR_0 with a value of all zeros.
 	 */
-	static const uint8_t pcr0_unchanged_policy[] = {
+	const uint8_t pcr0_unchanged_policy[] = {
 		0x09, 0x93, 0x3C, 0xCE, 0xEB, 0xB4, 0x41, 0x11,
 		0x18, 0x81, 0x1D, 0xD4, 0x47, 0x78, 0x80, 0x08,
 		0x88, 0x86, 0x62, 0x2D, 0xD7, 0x79, 0x94, 0x46,

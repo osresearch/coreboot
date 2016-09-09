@@ -13,6 +13,8 @@ config CPU_SPECIFIC_OPTIONS
 	select ARCH_ROMSTAGE_X86_32
 	select ARCH_VERSTAGE_X86_32
 	select ACPI_NHLT
+	select BOOT_DEVICE_SPI_FLASH_RW_NOMMAP_EARLY if BOOT_DEVICE_SPI_FLASH
+	select BOOT_DEVICE_SUPPORTS_WRITES
 	select CACHE_MRC_SETTINGS
 	select CACHE_RELOCATED_RAMSTAGE_OUTSIDE_CBMEM if RELOCATABLE_RAMSTAGE
 	select C_ENVIRONMENT_BOOTBLOCK
@@ -40,12 +42,12 @@ config CPU_SPECIFIC_OPTIONS
 	select RTC
 	select SOC_INTEL_COMMON
 	select SOC_INTEL_COMMON_ACPI_WAKE_SOURCE
+	select SOC_INTEL_COMMON_GFX_OPREGION if PLATFORM_USES_FSP2_0
 	select SOC_INTEL_COMMON_LPSS_I2C
 	select SOC_INTEL_COMMON_NHLT
 	select SOC_INTEL_COMMON_RESET
 	select SMM_TSEG
 	select SMP
-	select SPI_FLASH
 	select SSE2
 	select SUPPORT_CPU_UCODE_IN_CBFS
 	select TSC_CONSTANT_RATE
@@ -55,9 +57,11 @@ config CPU_SPECIFIC_OPTIONS
 config CHROMEOS
 	select CHROMEOS_RAMOOPS_DYNAMIC
 	select EC_SOFTWARE_SYNC if EC_GOOGLE_CHROMEEC
+	select SEPARATE_VERSTAGE
 	select VBOOT_EC_SLOW_UPDATE
 	select VBOOT_OPROM_MATTERS
 	select VBOOT_SAVE_RECOVERY_REASON_ON_REBOOT
+	select VBOOT_STARTS_IN_BOOTBLOCK
 	select VBOOT_VBNV_CMOS
 	select VBOOT_VBNV_CMOS_BACKUP_TO_FLASH
 	select VIRTUAL_DEV_SWITCH
@@ -84,7 +88,7 @@ config DCACHE_RAM_BASE
 
 config DCACHE_RAM_SIZE
 	hex "Length in bytes of cache-as-RAM"
-	default 0x10000
+	default 0x40000
 	help
 	  The size of the cache-as-ram region required during bootblock
 	  and/or romstage.
@@ -98,7 +102,7 @@ config DCACHE_BSP_STACK_SIZE
 
 config C_ENV_BOOTBLOCK_SIZE
 	hex
-	default 0x8000
+	default 0xC000
 
 config EXCLUDE_NATIVE_SD_INTERFACE
 	bool
@@ -199,14 +203,14 @@ config NHLT_SSM4567
 	help
 	  Include DSP firmware settings for ssm4567 smart amplifier.
 
-config DCACHE_RAM_SIZE_TOTAL
-	hex
-	default 0x40000
-
 config SKIP_FSP_CAR
 	bool "Skip cache as RAM setup in FSP"
 	default y
 	help
 	  Skip Cache as RAM setup in FSP.
+
+config SPI_FLASH_INCLUDE_ALL_DRIVERS
+	bool
+	default n
 
 endif

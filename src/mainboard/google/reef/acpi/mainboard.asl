@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  */
 
-#include "acpi/superio.asl"
-#include "../gpio.h"
+#include <variant/ec.h>
+#include <variant/gpio.h>
 
 Scope (\_SB)
 {
@@ -37,5 +37,6 @@ Scope (\_SB)
 Scope (\_SB.PCI0.LPCB)
 {
 	/* Chrome OS Embedded Controller */
+	#include "superio.asl"
 	#include "ec.asl"
 }
