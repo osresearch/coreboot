@@ -16,6 +16,7 @@
 
 #include <console/console.h>
 #include <arch/io.h>
+#include <arch/acpi_ivrs.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
@@ -715,100 +716,91 @@ void sr5650_enable(device_t dev)
 	}
 }
 
-static void add_ivrs_device_entries(struct device *parent, struct device *dev, int depth, int linknum, int8_t *root_level, unsigned long *current, uint16_t *length)
+static void add_ivrs_device_entries(struct device *parent, struct device *dev,
+		int depth, int linknum, int8_t *root_level,
+		unsigned long *current, uint16_t *length)
 {
-	uint8_t *p;
+	uint8_t *p = (uint8_t *) *current;
+
 	struct device *sibling;
 	struct bus *link;
 
 	if (!root_level) {
 		root_level = malloc(sizeof(int8_t));
+		if (root_level == NULL)
+			die("Error: Could not allocate a byte!\n");
 		*root_level = -1;
 	}
 
-	if (dev->path.type == DEVICE_PATH_PCI) {
-		if ((dev->bus->secondary == 0x0) && (dev->path.pci.devfn == 0x0))
-			*root_level = depth;
+	if ((dev->path.type == DEVICE_PATH_PCI) &&
+		(dev->bus->secondary == 0x0) && (dev->path.pci.devfn == 0x0))
+		*root_level = depth;
 
-		if (*root_level != -1) {
-			if (depth >= *root_level) {
-				if (dev->enabled) {
-					if (depth == *root_level) {
-						if (dev->path.pci.devfn < (0x1 << 3)) {
-							/* SR5690 control device */
-						} else if ((dev->path.pci.devfn >= (0x1 << 3)) && (dev->path.pci.devfn < (0xe << 3))) {
-							/* SR5690 PCIe bridge device */
-						} else {
-							if (dev->path.pci.devfn == (0x14 << 3)) {
-								/* SMBUS controller */
-								p = (uint8_t *) *current;
-								p[0] = 0x2;			/* Entry type */
-								p[1] = dev->path.pci.devfn;	/* Device */
-								p[2] = dev->bus->secondary;	/* Bus */
-								p[3] = 0x97;			/* Data */
-								p[4] = 0x0;			/* Padding */
-								p[5] = 0x0;			/* Padding */
-								p[6] = 0x0;			/* Padding */
-								p[7] = 0x0;			/* Padding */
-								*length += 8;
-								*current += 8;
-							} else {
-								/* Other southbridge device */
-								p = (uint8_t *) *current;
-								p[0] = 0x2;			/* Entry type */
-								p[1] = dev->path.pci.devfn;	/* Device */
-								p[2] = dev->bus->secondary;	/* Bus */
-								p[3] = 0x0;			/* Data */
-								p[4] = 0x0;			/* Padding */
-								p[5] = 0x0;			/* Padding */
-								p[6] = 0x0;			/* Padding */
-								p[7] = 0x0;			/* Padding */
-								*length += 8;
-								*current += 8;
-							}
-						}
-					} else {
-						if ((dev->hdr_type & 0x7f) == PCI_HEADER_TYPE_NORMAL) {
-							/* Device behind bridge */
-							if (pci_find_capability(dev, PCI_CAP_ID_PCIE)) {
-								/* Device is PCIe */
-								p = (uint8_t *) *current;
-								p[0] = 0x2;			/* Entry type */
-								p[1] = dev->path.pci.devfn;	/* Device */
-								p[2] = dev->bus->secondary;	/* Bus */
-								p[3] = 0x0;			/* Data */
-								p[4] = 0x0;			/* Padding */
-								p[5] = 0x0;			/* Padding */
-								p[6] = 0x0;			/* Padding */
-								p[7] = 0x0;			/* Padding */
-								*length += 8;
-								*current += 8;
-							} else {
-								/* Device is legacy PCI or PCI-X */
-								p = (uint8_t *) *current;
-								p[0] = 0x42;			/* Entry type */
-								p[1] = dev->path.pci.devfn;	/* Device */
-								p[2] = dev->bus->secondary;	/* Bus */
-								p[3] = 0x0;			/* Data */
-								p[4] = 0x0;			/* Reserved */
-								p[5] = parent->path.pci.devfn;	/* Device */
-								p[6] = parent->bus->secondary;	/* Bus */
-								p[7] = 0x0;			/* Reserved */
-								*length += 8;
-								*current += 8;
-							}
-						}
-					}
-				}
+	if ((dev->path.type == DEVICE_PATH_PCI) && (*root_level != -1) &&
+		(depth >= *root_level) && (dev->enabled)) {
+
+		*p = 0;
+		if (depth == *root_level) {
+			if (dev->path.pci.devfn < (0x1 << 3)) {
+				/* SR5690 control device */
+			} else if ((dev->path.pci.devfn >= (0x1 << 3)) &&
+					(dev->path.pci.devfn < (0xe << 3))) {
+				/* SR5690 PCIe bridge device */
+			} else if (dev->path.pci.devfn == (0x14 << 3)) {
+				/* SMBUS controller */
+				p[0] = IVHD_DEV_4_BYTE_SELECT;	/* Entry type */
+				p[1] = dev->path.pci.devfn;	/* Device */
+				p[2] = dev->bus->secondary;	/* Bus */
+				p[3] =  IVHD_DTE_LINT_1_PASS |	/* Data */
+					IVHD_DTE_SYS_MGT_NO_TRANS |
+					IVHD_DTE_NMI_PASS |
+					IVHD_DTE_EXT_INT_PASS |
+					IVHD_DTE_INIT_PASS;
+			} else {
+				/* Other southbridge device */
+				p[0] = IVHD_DEV_4_BYTE_SELECT;	/* Entry type */
+				p[1] = dev->path.pci.devfn;	/* Device */
+				p[2] = dev->bus->secondary;	/* Bus */
+				p[3] = 0x0;			/* Data */
 			}
+		} else if ((dev->hdr_type & 0x7f) == PCI_HEADER_TYPE_NORMAL) {
+			/* Device behind bridge */
+			if (pci_find_capability(dev, PCI_CAP_ID_PCIE)) {
+				/* Device is PCIe */
+				p[0] = IVHD_DEV_4_BYTE_SELECT;	/* Entry type */
+				p[1] = dev->path.pci.devfn;	/* Device */
+				p[2] = dev->bus->secondary;	/* Bus */
+				p[3] = 0x0;			/* Data */
+			} else {
+				/* Device is legacy PCI or PCI-X */
+				p[0] = IVHD_DEV_8_BYTE_ALIAS_SELECT; /* Entry */
+				p[1] = dev->path.pci.devfn;	/* Device */
+				p[2] = dev->bus->secondary;	/* Bus */
+				p[3] = 0x0;			/* Data */
+				p[4] = 0x0;			/* Reserved */
+				p[5] = parent->path.pci.devfn;	/* Device */
+				p[6] = parent->bus->secondary;	/* Bus */
+				p[7] = 0x0;			/* Reserved */
+			}
+		}
+
+		if (*p == IVHD_DEV_4_BYTE_SELECT) {
+			*length += 4;
+			*current += 4;
+		} else if (*p == IVHD_DEV_8_BYTE_ALIAS_SELECT) {
+			*length += 8;
+			*current += 8;
 		}
 	}
 
 	for (link = dev->link_list; link; link = link->next)
-		for (sibling = link->children; sibling; sibling = sibling->sibling)
-			add_ivrs_device_entries(dev, sibling, depth + 1, depth, root_level, current, length);
+		for (sibling = link->children; sibling;
+			sibling = sibling->sibling)
+			add_ivrs_device_entries(dev, sibling, depth + 1,
+				depth, root_level, current, length);
 
-	free(root_level);
+	if (depth == 0)
+		free(root_level);
 }
 
 unsigned long acpi_fill_mcfg(unsigned long current)
@@ -833,50 +825,62 @@ static unsigned long acpi_fill_ivrs(acpi_ivrs_t* ivrs, unsigned long current)
 
 	device_t nb_dev = dev_find_slot(0, PCI_DEVFN(0, 0));
 	if (!nb_dev) {
-		printk(BIOS_WARNING, "acpi_fill_ivrs: Unable to locate SR5650 device!  IVRS table not generated...\n");
+		printk(BIOS_WARNING, "acpi_fill_ivrs: Unable to locate SR5650 "
+				"device!  IVRS table not generated...\n");
 		return (unsigned long)ivrs;
 	}
 
 	device_t iommu_dev = dev_find_slot(0, PCI_DEVFN(0, 2));
 	if (!iommu_dev) {
-		printk(BIOS_WARNING, "acpi_fill_ivrs: Unable to locate SR5650 IOMMU device!  IVRS table not generated...\n");
+		printk(BIOS_WARNING, "acpi_fill_ivrs: Unable to locate SR5650 "
+				"IOMMU device!  IVRS table not generated...\n");
 		return (unsigned long)ivrs;
 	}
 
-	ivrs->iv_info = 0x0;
-	ivrs->iv_info |= (0x40 << 15);	/* Maximum supported virtual address size */
-	ivrs->iv_info |= (0x34 << 8);	/* Maximum supported physical address size */
+	ivrs->iv_info = IVINFO_VA_SIZE_64_BITS | IVINFO_PA_SIZE_52_BITS;
 
-	ivrs->ivhd.type = 0x10;
-	ivrs->ivhd.flags = 0x0e;
-	// if (get_nb_rev(nb_dev) != REV_SR5650_A11) {
-		ivrs->ivhd.flags |= 0x10;				/* Enable ATS support on all revisions except A11 */
-	// }
+	ivrs->ivhd.type = IVHD_BLOCK_TYPE_LEGACY__FIXED;
+	ivrs->ivhd.flags = IVHD_FLAG_ISOC |
+			   IVHD_FLAG_RES_PASS_PW |
+			   IVHD_FLAG_PASS_PW |
+			   IVHD_FLAG_IOTLB_SUP;
+
 	ivrs->ivhd.length = sizeof(struct acpi_ivrs_ivhd);
-	ivrs->ivhd.device_id = 0x2 | (nb_dev->bus->secondary << 8);	/* BDF <bus>:00.2 */
-	ivrs->ivhd.capability_offset = 0x40;				/* Capability block 0x40 (type 0xf, "Secure device") */
-	ivrs->ivhd.iommu_base_low = pci_read_config32(iommu_dev, 0x44) & 0xffffc000;
+
+	/* BDF <bus>:00.2 */
+	ivrs->ivhd.device_id = 0x2 | (nb_dev->bus->secondary << 8);
+
+	/* Capability block 0x40 (type 0xf, "Secure device") */
+	ivrs->ivhd.capability_offset = 0x40;
+	ivrs->ivhd.iommu_base_low = pci_read_config32(iommu_dev, 0x44) &
+			0xffffc000;
 	ivrs->ivhd.iommu_base_high = pci_read_config32(iommu_dev, 0x48);
 	ivrs->ivhd.pci_segment_group = 0x0;
 	ivrs->ivhd.iommu_info = 0x0;
-	ivrs->ivhd.iommu_info |= (0x14 << 8);
+	ivrs->ivhd.iommu_info |= (0x14 << IOMMU_INFO_UNIT_ID_SHIFT);
 	ivrs->ivhd.iommu_feature_info = 0x0;
 
 	/* Describe HPET */
 	p = (uint8_t *)current;
-	p[0] = 0x48;			/* Entry type */
-	p[1] = 0;			/* Device */
-	p[2] = 0;			/* Bus */
-	p[3] = 0xd7;			/* Data */
-	p[4] = 0x0;			/* HPET number */
-	p[5] = 0x14 << 3;		/* HPET device */
-	p[6] = nb_dev->bus->secondary;	/* HPET bus */
-	p[7] = 0x2;			/* Variety */
+	p[0] = IVHD_DEV_8_BYTE_EXT_SPECIAL_DEV;	/* Entry type */
+	p[1] = 0;				/* Device */
+	p[2] = 0;				/* Bus */
+	p[3] = IVHD_DTE_LINT_1_PASS |		/* DTE */
+	       IVHD_DTE_LINT_0_PASS |
+	       IVHD_DTE_SYS_MGT_INTX_NO_TRANS |
+	       IVHD_DTE_NMI_PASS |
+	       IVHD_DTE_EXT_INT_PASS |
+	       IVHD_DTE_INIT_PASS;
+	p[4] = 0x0;				/* HPET number */
+	p[5] = 0x14 << 3;			/* HPET device */
+	p[6] = nb_dev->bus->secondary;		/* HPET bus */
+	p[7] = IVHD_SPECIAL_DEV_HPET;		/* Variety */
 	ivrs->ivhd.length += 8;
 	current += 8;
 
 	/* Describe PCI devices */
-	add_ivrs_device_entries(NULL, all_devices, 0, -1, NULL, &current, &ivrs->ivhd.length);
+	add_ivrs_device_entries(NULL, all_devices, 0, -1, NULL, &current,
+			&ivrs->ivhd.length);
 
 	/* Describe IOAPICs */
 	unsigned long prev_current = current;

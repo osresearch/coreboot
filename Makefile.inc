@@ -197,6 +197,9 @@ romstage-c-deps:=$$(OPTION_TABLE_H)
 libverstage-c-deps:=$$(OPTION_TABLE_H)
 verstage-c-deps:=$$(OPTION_TABLE_H)
 bootblock-c-deps:=$$(OPTION_TABLE_H)
+$(foreach type,ads adb, \
+  $(foreach stage,$(COREBOOT_STANDARD_STAGES), \
+    $(eval $(stage)-$(type)-deps := $(obj)/libgnat-$(ARCH-$(stage)-y)/libgnat.a)))
 
 # Add handler to copy linker scripts
 define generic-objs_ld_template_gen
@@ -235,11 +238,7 @@ cbfs-files-$(if $(2),$(2),y) += $(CONFIG_CBFS_PREFIX)/$(1).aml
 $(obj)/$(1).aml: $(src)/mainboard/$(MAINBOARDDIR)/$(1).asl $(obj)/config.h
 	@printf "    IASL       $$(subst $(top)/,,$$(@))\n"
 	$(CC_ramstage) -x assembler-with-cpp -E -MMD -MT $$(@) $$(CPPFLAGS_ramstage) -D__ACPI__ -P -include $(src)/include/kconfig.h -I$(obj) -I$(src) -I$(src)/include -I$(src)/arch/$(ARCHDIR-$(ARCH-ramstage-y))/include -I$(src)/mainboard/$(MAINBOARDDIR) $$< -o $$@
-ifeq ($(CONFIG_IASL_WARNINGS_ARE_ERRORS),y)
 	cd $$(dir $$@); $(IASL) -we -p $$(notdir $$@) $$(notdir $$@)
-else
-	cd $$(dir $$@); $(IASL) -p $$(notdir $$@) $$(notdir $$@)
-endif
 	if [ -z "$$$$($(IASL) -d $$@ 2>&1 | grep 'ACPI Warning')" ]; then echo "    IASL       $$@ disassembled correctly."; true; else echo "Error: Could not correctly disassemble $$@"; $(IASL) -d $$@; false; fi
 endef
 
@@ -359,6 +358,50 @@ CFLAGS_common += -Wstrict-aliasing -Wshadow -Wdate-time
 CFLAGS_common += -fno-common -ffreestanding -fno-builtin -fomit-frame-pointer
 CFLAGS_common += -ffunction-sections -fdata-sections
 
+ADAFLAGS_common += -gnatg -gnatp
+ADAFLAGS_common += -Wuninitialized -Wall -Werror
+ADAFLAGS_common += -pipe -g -nostdinc
+ADAFLAGS_common += -Wstrict-aliasing -Wshadow
+ADAFLAGS_common += -fno-common -fomit-frame-pointer
+ADAFLAGS_common += -ffunction-sections -fdata-sections
+# Ada warning options:
+#
+#  a   Activate most optional warnings.
+# .e   Activate every optional warnings.
+#  e   Treat warnings and style checks as errors.
+#
+#  D   Suppress warnings on implicit dereferences:
+#      As SPARK does not accept access types we have to map the
+#      dynamically chosen register locations to a static SPARK
+#      variable.
+#
+# .H   Suppress warnings on holes/gaps in records:
+#      We are modelling hardware here!
+#
+#  H   Suppress warnings on hiding:
+#      It's too annoying, you run out of ideas for identifiers fast.
+#
+#  T   Suppress warnings for tracking of deleted conditional code:
+#      We use static options to select code paths at compile time.
+#
+#  U   Suppress warnings on unused entities:
+#      Would have lots of warnings for unused register definitions,
+#      `withs` for debugging etc.
+#
+# .U   Deactivate warnings on unordered enumeration types:
+#      As SPARK doesn't support `pragma Ordered` by now, we don't
+#      use that, yet.
+#
+# .W   Suppress warnings on unnecessary Warnings Off pragmas:
+#      Things get really messy when you use different compiler
+#      versions, otherwise.
+# .Y   Disable information messages for why package spec needs body:
+#      Those messages are annoying. But don't forget to enable those,
+#      if you need the information.
+ADAFLAGS_common += -gnatwa.eeD.HHTU.U.W.Y
+# Disable style checks for now
+ADAFLAGS_common += -gnatyN
+
 LDFLAGS_common := --gc-sections -nostdlib -nostartfiles -static --emit-relocs
 
 ifeq ($(CONFIG_COMPILER_GCC),y)
@@ -371,8 +414,10 @@ CFLAGS_common += -Werror
 endif
 ifneq ($(GDB_DEBUG),)
 CFLAGS_common += -Og
+ADAFLAGS_common += -Og
 else
 CFLAGS_common += -Os
+ADAFLAGS_common += -Os
 endif
 
 additional-dirs := $(objutil)/cbfstool $(objutil)/romcc $(objutil)/ifdtool \
@@ -429,9 +474,10 @@ $(ROMCC_BIN): $(top)/util/romcc/romcc.c
 	$(HOSTCC) -g $(STACK) -Wall -o $@ $<
 
 IFDTOOL:=$(objutil)/ifdtool/ifdtool
-$(IFDTOOL): $(top)/util/ifdtool/ifdtool.c
-	@printf "    HOSTCC     $(subst $(obj)/,,$(@))\n"
-	$(HOSTCC) $(HOSTCFLAGS) -o $@ $<
+$(IFDTOOL):
+	@printf "    Compile IFDTOOL\n"
+	$(MAKE) -C $(top)/util/ifdtool
+	cp -a $(top)/util/ifdtool/ifdtool $@
 
 IFDFAKE:=$(objutil)/ifdfake/ifdfake
 $(IFDFAKE): $(top)/util/ifdfake/ifdfake.c
@@ -525,6 +571,8 @@ gitconfig:
 	fi
 	[ -d 3rdparty/blobs ] && cd 3rdparty/blobs && git config remote.origin.push HEAD:refs/for/master
 	git config remote.origin.push HEAD:refs/for/master
+	git config alias.sup '!git submodule update --remote --rebase && git submodule update --init --checkout'
+	git config alias.sup-destroy '!git submodule deinit --force "$$(git rev-parse --show-toplevel)"; git submodule init && git submodule update --checkout'
 	(git config --global user.name >/dev/null && git config --global user.email >/dev/null) || (printf 'Please configure your name and email in git:\n\n git config --global user.name "Your Name Comes Here"\n git config --global user.email your.email@example.com\n'; exit 1)
 
 include util/crossgcc/Makefile.inc
@@ -843,10 +891,6 @@ endif
 	mv $@.tmp $@
 	@printf "    CBFSPRINT  $(subst $(obj)/,,$(@))\n\n"
 	$(CBFSTOOL) $@ print -r $(subst $(spc),$(comma),$(all-regions))
-ifeq ($(CONFIG_IASL_WARNINGS_ARE_ERRORS),)
-	@printf "\n***** WARNING: IASL warnings as errors is disabled!  *****\n"
-	@printf "*****          Please fix the ASL for this platform. *****\n\n"
-endif
 
 cbfs-files-y += $(CONFIG_CBFS_PREFIX)/romstage
 $(CONFIG_CBFS_PREFIX)/romstage-file := $(objcbfs)/romstage.elf

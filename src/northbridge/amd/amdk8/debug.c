@@ -18,7 +18,7 @@ static void print_debug_pci_dev(unsigned dev)
 
 static inline void print_pci_devices(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	for (dev = PCI_DEV(0, 0, 0);
 		dev <= PCI_DEV(0xff, 0x1f, 0x7);
 		dev += PCI_DEV(0,0,1)) {
@@ -58,7 +58,8 @@ static void dump_pci_device(unsigned dev)
 }
 
 #if CONFIG_K8_REV_F_SUPPORT
-static uint32_t pci_read_config32_index_wait(device_t dev, uint32_t index_reg, uint32_t index);
+static uint32_t pci_read_config32_index_wait(pci_devfn_t dev,
+		uint32_t index_reg, uint32_t index);
 static inline void dump_pci_device_index_wait(unsigned dev, uint32_t index_reg)
 {
 	int i;
@@ -70,7 +71,7 @@ static inline void dump_pci_device_index_wait(unsigned dev, uint32_t index_reg)
 		int j;
 		printk(BIOS_DEBUG, "\n%02x:",i);
 		val = pci_read_config32_index_wait(dev, index_reg, i);
-		for (j=0;j<4;j++) {
+		for (j = 0; j < 4; j++) {
 			printk(BIOS_DEBUG, " %02x", val & 0xff);
 			val >>= 8;
 		}
@@ -82,7 +83,7 @@ static inline void dump_pci_device_index_wait(unsigned dev, uint32_t index_reg)
 
 static inline void dump_pci_devices(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	for (dev = PCI_DEV(0, 0, 0);
 		dev <= PCI_DEV(0xff, 0x1f, 0x7);
 		dev += PCI_DEV(0,0,1)) {
@@ -107,7 +108,7 @@ static inline void dump_pci_devices(void)
 
 static inline void dump_pci_devices_on_bus(unsigned busn)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	for (dev = PCI_DEV(busn, 0, 0);
 		dev <= PCI_DEV(busn, 0x1f, 0x7);
 		dev += PCI_DEV(0,0,1)) {
@@ -184,7 +185,7 @@ static void dump_smbus_registers(void)
 	printk(BIOS_DEBUG, "\n");
 	for (device = 1; device < 0x80; device++) {
 		int j;
-		if ( smbus_read_byte(device, 0) < 0 ) continue;
+		if (smbus_read_byte(device, 0) < 0) continue;
 		printk(BIOS_DEBUG, "smbus: %02x", device);
 		for (j = 0; j < 256; j++) {
 			int status;
@@ -210,7 +211,7 @@ static inline void dump_io_resources(unsigned port)
 	int i;
 	udelay(2000);
 	printk(BIOS_DEBUG, "%04x:\n", port);
-	for (i=0;i<256;i++) {
+	for (i = 0; i < 256; i++) {
 		uint8_t val;
 		if ((i & 0x0f) == 0) {
 			printk(BIOS_DEBUG, "%02x:", i);
@@ -228,8 +229,8 @@ static inline void dump_mem(unsigned start, unsigned end)
 {
 	unsigned i;
 	printk(BIOS_DEBUG, "dump_mem:");
-	for (i=start;i<end;i++) {
-		if ((i & 0xf)==0) {
+	for (i = start; i < end; i++) {
+		if ((i & 0xf) == 0) {
 			printk(BIOS_DEBUG, "\n%08x:", i);
 		}
 		printk(BIOS_DEBUG, " %02x", (unsigned char)*((unsigned char *)i));

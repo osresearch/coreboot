@@ -17,7 +17,7 @@
 #include <fsp/util.h>
 #include <reset.h>
 
-void chipset_handle_reset(enum fsp_status status)
+void chipset_handle_reset(uint32_t status)
 {
 	switch(status) {
 	case FSP_STATUS_RESET_REQUIRED_3: /* Global Reset */

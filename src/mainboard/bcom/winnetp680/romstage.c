@@ -42,13 +42,13 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 
 static void enable_mainboard_devices(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	dev = pci_locate_device(PCI_ID(PCI_VENDOR_ID_VIA,
 				PCI_DEVICE_ID_VIA_VT8237R_LPC), 0);
 	if (dev == PCI_DEV_INVALID)
 		die("Southbridge not found!!!\n");
 
-	/* bit=0 means enable function (per CX700 datasheet)
+	/* bit = 0 means enable function (per CX700 datasheet)
 	 *   5 16.1 USB 2
 	 *   4 16.0 USB 1
 	 *   3 15.0 SATA and PATA
@@ -57,7 +57,7 @@ static void enable_mainboard_devices(void)
 	 */
 	pci_write_config8(dev, 0x50, 0x80);
 
-	/* bit=1 means enable internal function (per CX700 datasheet)
+	/* bit = 1 means enable internal function (per CX700 datasheet)
 	 *   3 Internal RTC
 	 *   2 Internal PS2 Mouse
 	 *   1 Internal KBC Configuration

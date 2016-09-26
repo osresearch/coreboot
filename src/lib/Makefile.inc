@@ -13,6 +13,7 @@
 # GNU General Public License for more details.
 #
 subdirs-y += loaders
+subdirs-y += gnat
 
 
 ifneq ($(CONFIG_BOOTBLOCK_CUSTOM),y)
@@ -148,6 +149,7 @@ ramstage-y += imd_cbmem.c
 ramstage-y += imd.c
 
 postcar-y += cbmem_common.c
+postcar-$(CONFIG_CONSOLE_CBMEM) += cbmem_console.c
 postcar-y += imd_cbmem.c
 postcar-y += imd.c
 

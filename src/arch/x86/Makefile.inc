@@ -25,7 +25,7 @@ ifeq ($(CONFIG_HAVE_OPTION_TABLE),y)
 
 cbfs-files-y += cmos_layout.bin
 cmos_layout.bin-file = $(obj)/cmos_layout.bin
-cmos_layout.bin-type = 0x01aa
+cmos_layout.bin-type = cmos_layout
 
 $(obj)/cmos_layout.bin: $(NVRAMTOOL) $(top)/src/mainboard/$(MAINBOARDDIR)/cmos.layout
 	@printf "    OPTION     $(subst $(obj)/,,$(@))\n"
@@ -213,7 +213,7 @@ romstage-y += memcpy.c
 romstage-y += memmove.c
 romstage-y += memset.c
 romstage-$(CONFIG_X86_TOP4G_BOOTMEDIA_MAP) += mmap_boot.c
-romstage-$(CONFIG_POSTCAR_STAGE) += postcar_loader.c
+romstage-y += postcar_loader.c
 romstage-$(CONFIG_COLLECT_TIMESTAMPS) += timestamp.c
 
 ifneq ($(CONFIG_ROMCC),y)
@@ -287,6 +287,7 @@ postcar-y += memmove.c
 postcar-y += memset.c
 postcar-y += memlayout.ld
 postcar-$(CONFIG_X86_TOP4G_BOOTMEDIA_MAP) += mmap_boot.c
+postcar-y += postcar.c
 postcar-$(CONFIG_COLLECT_TIMESTAMPS) += timestamp.c
 
 LDFLAGS_postcar += -Map $(objcbfs)/postcar.map

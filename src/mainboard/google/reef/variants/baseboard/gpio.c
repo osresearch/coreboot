@@ -24,7 +24,7 @@
  */
 static const struct pad_config gpio_table[] = {
 	/* PCIE_WAKE[0:3]_N */
-	PAD_CFG_NF(GPIO_205, UP_20K, DEEP, NF1), /* WLAN */
+	PAD_CFG_GPI_SCI_LOW(GPIO_205, UP_20K, DEEP, EDGE_SINGLE), /* WLAN */
 	PAD_CFG_GPI(GPIO_206, UP_20K, DEEP),	 /* Unused */
 	PAD_CFG_GPI(GPIO_207, UP_20K, DEEP),	 /* Unused */
 	PAD_CFG_GPI(GPIO_208, UP_20K, DEEP),	 /* Unused */
@@ -353,6 +353,7 @@ static const struct pad_config early_gpio_table[] = {
 	/* I2C2 - TPM  */
 	PAD_CFG_NF(GPIO_128, UP_2K, DEEP, NF1), /* LPSS_I2C2_SDA */
 	PAD_CFG_NF(GPIO_129, UP_2K, DEEP, NF1), /* LPSS_I2C2_SCL */
+	PAD_CFG_GPI_APIC_LOW(GPIO_28, NONE, DEEP), /* TPM IRQ */
 	/* WLAN_PE_RST - default to deasserted just in case FSP misbehaves. */
 	PAD_CFG_GPO(GPIO_122, 0, DEEP),		 /* SIO_SPI_2_RXD */
 };

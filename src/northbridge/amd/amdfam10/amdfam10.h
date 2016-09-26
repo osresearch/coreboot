@@ -967,8 +967,8 @@ that are corresponding to 0x01, 0x02, 0x03, 0x05, 0x06, 0x07
 #include "nums.h"
 
 #ifdef __PRE_RAM__
-#if NODE_NUMS==64
-	 #define NODE_PCI(x, fn) ((x<32)?(PCI_DEV(CONFIG_CBB,(CONFIG_CDB+x),fn)):(PCI_DEV((CONFIG_CBB-1),(CONFIG_CDB+x-32),fn)))
+#if NODE_NUMS == 64
+	 #define NODE_PCI(x, fn) ((x < 32)?(PCI_DEV(CONFIG_CBB,(CONFIG_CDB+x),fn)):(PCI_DEV((CONFIG_CBB-1),(CONFIG_CDB+x-32),fn)))
 #else
 	 #define NODE_PCI(x, fn) PCI_DEV(CONFIG_CBB,(CONFIG_CDB+x),fn)
 #endif
@@ -977,17 +977,17 @@ that are corresponding to 0x01, 0x02, 0x03, 0x05, 0x06, 0x07
 #include "raminit.h"
 
 #include "../amdmct/wrappers/mcti.h"
-#if (CONFIG_DIMM_SUPPORT & 0x000F)==0x0005 /* AMD_FAM10_DDR3 */
+#if (CONFIG_DIMM_SUPPORT & 0x000F) == 0x0005 /* AMD_FAM10_DDR3 */
   #include "../amdmct/mct_ddr3/mct_d.h"
 #else
   #include "../amdmct/mct/mct_d.h"
 #endif
 
 struct link_pair_t {
-	device_t udev;
+	pci_devfn_t udev;
 	u32 upos;
 	u32 uoffs;
-	device_t dev;
+	pci_devfn_t dev;
 	u32 pos;
 	u32 offs;
 	u8 host;
@@ -1048,7 +1048,7 @@ device_t get_node_pci(u32 nodeid, u32 fn);
 #endif
 
 #ifdef __PRE_RAM__
-void showallroutes(int level, device_t dev);
+void showallroutes(int level, pci_devfn_t dev);
 
 void setup_resource_map_offset(const u32 *register_values, u32 max, u32
 		offset_pci_dev, u32 offset_io_base);
@@ -1072,9 +1072,11 @@ BOOL AMD_CB_ManualBUIDSwapList(u8 Node, u8 Link, const u8 **List);
 
 struct acpi_rsdp;
 
+#ifndef __SIMPLE_DEVICE__
 unsigned long northbridge_write_acpi_tables(device_t device,
 					    unsigned long start,
 					    struct acpi_rsdp *rsdp);
 void northbridge_acpi_write_vars(device_t device);
+#endif
 
 #endif /* AMDFAM10_H */

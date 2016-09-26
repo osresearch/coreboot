@@ -13,7 +13,7 @@ static void enumerate_ht_chain(void)
 	 * links needs to be programed to point at bus 0.
 	 */
 	unsigned next_unitid, last_unitid;
-	device_t dev;
+	pci_devfn_t dev;
 #if CONFIG_HT_CHAIN_END_UNITID_BASE != 0x20
 	//let't record the device of last ht device, So we can set the Unitid to CONFIG_HT_CHAIN_END_UNITID_BASE
 	unsigned real_last_unitid = 0;
@@ -61,10 +61,10 @@ static void enumerate_ht_chain(void)
 				if ((flags >> 13) == 0) {
 					unsigned count;
 					unsigned ctrl, ctrl_off;
-					device_t devx;
+					pci_devfn_t devx;
 
 #if CONFIG_HT_CHAIN_END_UNITID_BASE != 0x20
-					if (next_unitid>=0x18) { // don't get mask out by k8, at this time BSP, RT is not enabled, it will response from 0x18,0--0x1f.
+					if (next_unitid >= 0x18) { // don't get mask out by k8, at this time BSP, RT is not enabled, it will response from 0x18,0--0x1f.
 						if (!end_used) {
 							next_unitid = CONFIG_HT_CHAIN_END_UNITID_BASE;
 							end_used = 1;
@@ -127,7 +127,7 @@ out:
 	;
 
 #if CONFIG_HT_CHAIN_END_UNITID_BASE != 0x20
-	if ((ht_dev_num>1) && (real_last_unitid != CONFIG_HT_CHAIN_END_UNITID_BASE) && !end_used) {
+	if ((ht_dev_num > 1) && (real_last_unitid != CONFIG_HT_CHAIN_END_UNITID_BASE) && !end_used) {
 		uint16_t flags;
 		dev = PCI_DEV(0,real_last_unitid, 0);
 		flags = pci_read_config16(dev, real_last_pos + PCI_CAP_FLAGS);

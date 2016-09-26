@@ -1495,7 +1495,13 @@ sub raw_line {
 		$cnt--;
 	}
 
-	return $line;
+	# coreboot: This probably shouldn't happen, but it does.
+	# Return a defined value so we don't get an error.
+	if (defined $line) {
+		return $line;
+	} else {
+		return "";
+	}
 }
 
 sub cat_vet {
@@ -3836,11 +3842,12 @@ sub process {
 #  1. with a type on the left -- int [] a;
 #  2. at the beginning of a line for slice initialisers -- [0...10] = 5,
 #  3. inside a curly brace -- = { [0...10] = 5 }
+#  4. in an extended asm instruction -- : [r0]"r"(r0)
 		while ($line =~ /(.*?\s)\[/g) {
 			my ($where, $prefix) = ($-[1], $1);
 			if ($prefix !~ /$Type\s+$/ &&
 			    ($where != 0 || $prefix !~ /^.\s+$/) &&
-			    $prefix !~ /[{,]\s+$/) {
+			    $prefix !~ /[{,:]\s+$/) {
 				if (ERROR("BRACKET_SPACE",
 					  "space prohibited before open square bracket '['\n" . $herecurr) &&
 				    $fix) {
@@ -4709,7 +4716,7 @@ sub process {
 			    $dstat !~ /^do\s*$Constant\s*while\s*$Constant;?$/ &&	# do {...} while (...); // do {...} while (...)
 			    $dstat !~ /^for\s*$Constant$/ &&				# for (...)
 			    $dstat !~ /^for\s*$Constant\s+(?:$Ident|-?$Constant)$/ &&	# for (...) bar()
-			    $dstat !~ /^do\s*{/ &&					# do {...
+			    $dstat !~ /^do\s*\{/ &&					# do {...
 			    $dstat !~ /^\(\{/ &&						# ({...
 			    $ctx !~ /^.\s*#\s*define\s+TRACE_(?:SYSTEM|INCLUDE_FILE|INCLUDE_PATH)\b/)
 			{
@@ -5333,7 +5340,8 @@ sub process {
 		}
 
 # Check that the storage class is at the beginning of a declaration
-		if ($line =~ /\b$Storage\b/ && $line !~ /^.\s*$Storage\b/) {
+# coreboot: skip complaint about our '#define asmlinkage' lines
+		if ($line =~ /\b$Storage\b/ && $line !~ /^.\s*$Storage\b/ && $line !~ /^.\s*#\s*define\s+$Storage\b/) {
 			WARN("STORAGE_CLASS",
 			     "storage class should be at the beginning of the declaration\n" . $herecurr)
 		}

@@ -59,29 +59,55 @@ int postcar_frame_init(struct postcar_frame *pcf, size_t stack_size)
 void postcar_frame_add_mtrr(struct postcar_frame *pcf,
 				uintptr_t addr, size_t size, int type)
 {
-	size_t align;
+	/*
+	 * Utilize additional MTRRs if the specified size is greater than the
+	 * base address alignment.
+	 */
+	while (size != 0) {
+		uint32_t addr_lsb;
+		uint32_t size_msb;
+		uint32_t mtrr_size;
 
-	if (pcf->num_var_mttrs >= pcf->max_var_mttrs) {
-		printk(BIOS_ERR, "No more variable MTRRs: %d\n",
-			pcf->max_var_mttrs);
-		return;
+		if (pcf->num_var_mttrs >= pcf->max_var_mttrs) {
+			printk(BIOS_ERR, "No more variable MTRRs: %d\n",
+					pcf->max_var_mttrs);
+			return;
+		}
+
+		addr_lsb = fls(addr);
+		size_msb = fms(size);
+
+		/* All MTRR entries need to have their base aligned to the mask
+		 * size. The maximum size is calculated by a function of the
+		 * min base bit set and maximum size bit set. */
+		if (addr_lsb > size_msb)
+			mtrr_size = 1 << size_msb;
+		else
+			mtrr_size = 1 << addr_lsb;
+
+		printk(BIOS_DEBUG, "MTRR Range: Start=%lx End=%lx (Size %x)\n",
+					addr, addr + mtrr_size, mtrr_size);
+
+		stack_push(pcf, pcf->upper_mask);
+		stack_push(pcf, ~(mtrr_size - 1) | MTRR_PHYS_MASK_VALID);
+		stack_push(pcf, 0);
+		stack_push(pcf, addr | type);
+		pcf->num_var_mttrs++;
+
+		size -= mtrr_size;
+		addr += mtrr_size;
 	}
+}
 
-	/* Determine address alignment by lowest bit set in address. */
-	align = addr & (addr ^ (addr - 1));
-
-	if (align < size) {
-		printk(BIOS_ERR, "Address (%lx) alignment (%zx) < size (%zx)\n",
-			addr, align, size);
-		size = align;
-	}
-
-	/* Push MTRR mask then base -- upper 32-bits then lower 32-bits. */
-	stack_push(pcf, pcf->upper_mask);
-	stack_push(pcf, ~(size - 1) | MTRR_PHYS_MASK_VALID);
-	stack_push(pcf, 0);
-	stack_push(pcf, addr | type);
-	pcf->num_var_mttrs++;
+void *postcar_commit_mtrrs(struct postcar_frame *pcf)
+{
+	/*
+	 * Place the number of used variable MTRRs on stack then max number
+	 * of variable MTRRs supported in the system.
+	 */
+	stack_push(pcf, pcf->num_var_mttrs);
+	stack_push(pcf, pcf->max_var_mttrs);
+	return (void *) pcf->stack;
 }
 
 void run_postcar_phase(struct postcar_frame *pcf)
@@ -93,12 +119,7 @@ void run_postcar_phase(struct postcar_frame *pcf)
 		.prog = &prog,
 	};
 
-	/*
-	 * Place the number of used variable MTRRs on stack then max number
-	 * of variable MTRRs supported in the system.
-	 */
-	stack_push(pcf, pcf->num_var_mttrs);
-	stack_push(pcf, pcf->max_var_mttrs);
+	postcar_commit_mtrrs(pcf);
 
 	if (prog_locate(&prog))
 		die("Failed to locate after CAR program.\n");

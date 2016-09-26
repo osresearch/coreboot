@@ -15,6 +15,7 @@
  * GNU General Public License for more details.
  */
 #include <soc/gpio_defs.h>
+#include "gpiolib.asl"
 
 scope (\_SB) {
 
@@ -141,11 +142,57 @@ scope (\_SB) {
 			Return(0xf)
 		}
 	}
+
+	Scope(\_SB.PCI0) {
+		/* PERST Assertion
+		 * Note: PERST is Active High
+		 */
+		Method (PRAS, 0x1, Serialized)
+		{
+			/*
+			 * Assert PERST
+			 * local1 - to toggle Tx pin of Dw0
+			 * local2 - Address of PERST
+			 */
+			Store (Arg0, Local2)
+			Store (\_SB.GPC0 (Local2), Local1)
+			Or (Local1, PAD_CFG0_TX_STATE, Local1)
+			\_SB.SPC0 (Local2, Local1)
+		}
+
+		/* PERST DE-Assertion */
+		Method (PRDA, 0x1, Serialized)
+		{
+			/*
+			 * De-assert PERST
+			 * local1 - to toggle Tx pin of Dw0
+			 * local2 - Address of PERST
+			 */
+			Store (Arg0, Local2)
+			Store (\_SB.GPC0 (Local2), Local1)
+			And (Local1, Not (PAD_CFG0_TX_STATE), Local1)
+			\_SB.SPC0 (Local2, Local1)
+		}
+	}
+
+	/*
+	 * Sleep button device ASL code. We are using this device to
+	 * add the _PRW method for a dummy wake event to kernel so that
+	 * before going to sleep kernel does not clear bit 15 in ACPI
+	 * gpe0a enable register which is actually the GPIO_TIER1_SCI_EN bit.
+	 */
+	Device (SLP)
+	{
+		Name (_HID, EisaId ("PNP0C0E"))
+
+		Name (_PRW, Package() { GPE0A_GPIO_TIER1_SCI_STS, 0x3 })
+	}
 }
 
 Scope(\_GPE)
 {
-	/* Dummy method for the Tier 1 GPIO SCI enable bit. When kernel reads
+	/*
+	 * Dummy method for the Tier 1 GPIO SCI enable bit. When kernel reads
 	 * _L0F in scope GPE it sets bit for gpio_tier1_sci_en in ACPI enable
 	 * register at 0x430. For APL ACPI enable register DW0 i.e., ACPI
 	 * GPE0a_EN at 0x430 is reserved.

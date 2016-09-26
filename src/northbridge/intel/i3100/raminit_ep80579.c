@@ -240,7 +240,7 @@ static int spd_set_row_attributes(const struct mem_controller *ctrl,
 		/* set device type (registered) */
 		dra |= (1 << 14);
 
-		/* set number of ranks (0=single, 1=dual) */
+		/* set number of ranks (0 = single, 1 = dual) */
 		value = spd_read_byte(ctrl->channel0[i], SPD_NUM_DIMM_BANKS);
 		dra |= ((value & 0x1) << 17);
 
@@ -618,7 +618,7 @@ static void sdram_enable(int controllers, const struct mem_controller *ctrl)
 		write32(BAR+DCALCSR, (0x80000003 | ((cs+1)<<21)));
 		do data32 = read32(BAR+DCALCSR);
 		while (data32 & 0x80000000);
-        }
+	}
 
 	udelay(16);
 	/* No command */

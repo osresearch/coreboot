@@ -289,29 +289,29 @@ struct sysinfo {
 };
 
 enum ddr2_signals {
-        CLKSET0 = 0,
-        CTRL0,
-        CLKSET1,
-        CMD,
-        CTRL1,
-        CTRL2,
-        CTRL3,
-        DQS1,
-        DQS2,
-        DQS3,
-        DQS4,
-        DQS5,
-        DQS6,
-        DQS7,
-        DQS8,
-        DQ1,
-        DQ2,
-        DQ3,
-        DQ4,
-        DQ5,
-        DQ6,
-        DQ7,
-        DQ8
+	CLKSET0 = 0,
+	CTRL0,
+	CLKSET1,
+	CMD,
+	CTRL1,
+	CTRL2,
+	CTRL3,
+	DQS1,
+	DQS2,
+	DQS3,
+	DQS4,
+	DQS5,
+	DQS6,
+	DQS7,
+	DQS8,
+	DQ1,
+	DQ2,
+	DQ3,
+	DQ4,
+	DQ5,
+	DQ6,
+	DQ7,
+	DQ8
 };
 
 #ifndef __BOOTBLOCK__
@@ -324,6 +324,8 @@ void sdram_initialize(int boot_path, const u8 *spd_map);
 void raminit_ddr2(struct sysinfo *);
 
 struct acpi_rsdp;
+#ifndef __SIMPLE_DEVICE__
 unsigned long northbridge_write_acpi_tables(device_t device, unsigned long start, struct acpi_rsdp *rsdp);
+#endif /* __SIMPLE_DEVICE__ */
 #endif
 #endif /* __NORTHBRIDGE_INTEL_X4X_H__ */

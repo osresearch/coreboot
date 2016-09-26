@@ -138,12 +138,6 @@
 #define   PCIE_GPE_EN		(1 << 9)
 #define   SWGPE_EN		(1 << 2)
 
-/*
- * Enables the setting of the GPIO_TIER1_SCI_STS bit to generate a wake event
- * and/or an SCI or SMI#.
- */
-#define GPIO_TIER_1_SCI		(1 << 15)
-
 /* Memory mapped IO registers behind PMC_BASE_ADDRESS */
 #define PRSTS			0x1000
 #define GEN_PMCON1		0x1020
@@ -212,6 +206,7 @@ void enable_gpe(uint32_t mask);
 void disable_gpe(uint32_t mask);
 void disable_all_gpe(void);
 uintptr_t get_pmc_mmio_bar(void);
+void pmc_gpe_init(void);
 
 void global_reset_enable(bool enable);
 void global_reset_lock(void);

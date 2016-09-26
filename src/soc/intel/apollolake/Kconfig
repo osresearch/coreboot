@@ -12,6 +12,7 @@ config CPU_SPECIFIC_OPTIONS
 	select ARCH_RAMSTAGE_X86_32
 	select ARCH_ROMSTAGE_X86_32
 	select ARCH_VERSTAGE_X86_32
+	select BOOTBLOCK_CONSOLE
 	select BOOT_DEVICE_SPI_FLASH_RW_NOMMAP_EARLY if BOOT_DEVICE_SPI_FLASH
 	select BOOT_DEVICE_SUPPORTS_WRITES
 	# CPU specific options
@@ -40,6 +41,7 @@ config CPU_SPECIFIC_OPTIONS
 	select PCIEXP_COMMON_CLOCK
 	select PCIEXP_CLK_PM
 	select PCIEXP_L1_SUB_STATE
+	select POSTCAR_CONSOLE
 	select POSTCAR_STAGE
 	select REG_SCRIPT
 	select RELOCATABLE_RAMSTAGE	# Build fails if this is not selected
@@ -127,7 +129,6 @@ config SOC_UART_DEBUG
 	bool "Enable SoC UART debug port selected by UART_FOR_CONSOLE."
 	default n
 	select CONSOLE_SERIAL
-	select BOOTBLOCK_CONSOLE
 	select DRIVERS_UART
 	select DRIVERS_UART_8250MEM_32
 	select NO_UART_ON_SUPERIO

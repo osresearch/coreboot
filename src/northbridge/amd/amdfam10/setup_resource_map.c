@@ -23,7 +23,7 @@ static void setup_resource_map(const u32 *register_values, u32 max)
 //	printk(BIOS_DEBUG, "setting up resource map....");
 
 	for (i = 0; i < max; i += 3) {
-		device_t dev;
+		pci_devfn_t dev;
 		u32 where;
 		u32 reg;
 
@@ -43,7 +43,7 @@ void setup_resource_map_offset(const u32 *register_values, u32 max, u32 offset_p
 	u32 i;
 //	printk(BIOS_DEBUG, "setting up resource map offset....");
 	for (i = 0; i < max; i += 3) {
-		device_t dev;
+		pci_devfn_t dev;
 		u32 where;
 		unsigned long reg;
 		dev = (register_values[i] & ~0xfff) + offset_pci_dev;
@@ -72,14 +72,14 @@ void setup_resource_map_x_offset(const u32 *register_values, u32 max, u32 offset
 		if (IS_ENABLED(RES_DEBUG))
 			printk(BIOS_DEBUG, "%04x: %02x %08x <- & %08x | %08x\n",
 				i/4, register_values[i],
-				register_values[i+1] + ( (register_values[i]==RES_PCI_IO) ? offset_pci_dev : 0),
+				register_values[i+1] + ((register_values[i]==RES_PCI_IO) ? offset_pci_dev : 0),
 				register_values[i+2],
-				register_values[i+3] + ( ( (register_values[i] & RES_PORT_IO_32) == RES_PORT_IO_32) ? offset_io_base : 0)
+				register_values[i+3] + (((register_values[i] & RES_PORT_IO_32) == RES_PORT_IO_32) ? offset_io_base : 0)
 				);
 		switch (register_values[i]) {
 		case RES_PCI_IO: //PCI
 			{
-			device_t dev;
+			pci_devfn_t dev;
 			u32 where;
 			u32 reg;
 			dev = (register_values[i+1] & ~0xfff) + offset_pci_dev;
@@ -147,7 +147,7 @@ void setup_resource_map_x(const u32 *register_values, u32 max)
 		switch (register_values[i]) {
 		case RES_PCI_IO: //PCI
 			{
-			device_t dev;
+			pci_devfn_t dev;
 			u32 where;
 			u32 reg;
 			dev = register_values[i+1] & ~0xff;

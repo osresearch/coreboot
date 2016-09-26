@@ -18,15 +18,16 @@
 
 cd $(dirname $0)
 
-CROSSGCC_DATE="August 11th, 2016"
-CROSSGCC_VERSION="1.42"
+CROSSGCC_DATE="August 31st, 2016"
+CROSSGCC_VERSION="1.43"
 CROSSGCC_COMMIT=$( git describe )
 
 # default settings
 PACKAGE=GCC
 TARGETDIR=$(pwd)/xgcc
 TARGETARCH=i386-elf
-LANGUAGES=c
+DEFAULT_LANGUAGES=c
+LANGUAGES=
 DESTDIR=
 SAVETEMPS=0
 SKIPPYTHON=1
@@ -41,7 +42,7 @@ GCC_VERSION=5.3.0
 GCC_AUTOCONF_VERSION=2.69
 BINUTILS_VERSION=2.26.1
 GDB_VERSION=7.11
-IASL_VERSION=20160318
+IASL_VERSION=20160831
 PYTHON_VERSION=3.5.1
 EXPAT_VERSION=2.1.1
 # CLANG version number
@@ -203,6 +204,60 @@ check_for_library() {
 	cc $CFLAGS $LIBRARY_FLAGS "${LIBTEST_FILE}.c" -o "${LIBTEST_FILE}" >/dev/null 2>&1 || \
 		please_install "$LIBRARY_PACKAGES"
 	rm -rf "${LIBTEST_FILE}.c" "${LIBTEST_FILE}"
+}
+
+buildcc_major() {
+	echo "${GCC_VERSION}" | cut -d. -f1
+}
+
+buildcc_version() {
+	echo "${GCC_VERSION}" | cut -d. -f1-2
+}
+
+hostcc_major() {
+	(echo __GNUC__ | ${CC} -E - 2>/dev/null || echo 0) | tail -1
+}
+
+hostcc_minor() {
+	(echo __GNUC_MINOR__ | ${CC} -E - 2>/dev/null || echo 0) | tail -1
+}
+
+hostcc_version() {
+	printf "%d.%d" "$(hostcc_major)" "$(hostcc_minor)"
+}
+
+hostcc_has_gnat1() {
+	[ -x "$(${CC} -print-prog-name=gnat1)" ]
+}
+
+ada_requested() {
+	echo "${LANGUAGES}" | grep -q '\<ada\>'
+}
+
+check_gnat() {
+	if hostcc_has_gnat1; then
+		if [ "$(hostcc_version)" != "$(buildcc_version)" -a "${BOOTSTRAP}" != "1" ]; then
+			printf "\n${RED}ERROR:${red} Building the Ada compiler (gnat $(buildcc_version)) "
+			printf "with a different host compiler\n       version ($(hostcc_version)) "
+			printf "requires bootstrapping (-b).${NC}\n\n"
+			HALT_FOR_TOOLS=1
+		fi
+	else
+		please_install gnat
+	fi
+}
+
+check_cc() {
+	if is_package_enabled "GCC"; then
+		if [ "$(hostcc_major)" != "$(buildcc_major)" -a "${BOOTSTRAP}" != "1" ]; then
+			printf "\n${red}warning: Building GCC $(buildcc_version) with a different major "
+			printf "version ($(hostcc_version)).\n"
+			printf "         Bootstrapping (-b) is recommended.${NC}\n\n"
+		fi
+		if ada_requested; then
+			check_gnat
+		fi
+	fi
 }
 
 check_sum() {
@@ -385,8 +440,8 @@ myhelp()
 	printf "    [-c|--clean]                  remove temporary files before build\n"
 	printf "    [-t|--savetemps]              don't remove temporary files after build\n"
 	printf "    [-y|--ccache]                 Use ccache when building cross compiler\n"
-	printf "       [--nocolor]                don't print color codes in output\n"
-	printf "       [--urls]                   print the urls for all packages\n"
+	printf "    [-n|--nocolor]                don't print color codes in output\n"
+	printf "    [-u|--urls]                   print the urls for all packages\n"
 	printf "    [-j|--jobs <num>]             run <num> jobs in parallel in make\n"
 	printf "    [-s]--supported <tool>        print supported version of a tool\n"
 	printf "    [-d|--directory <target dir>] target directory to install cross compiler to\n"
@@ -401,7 +456,7 @@ myhelp()
 	printf "    [-p|--platform <platform>]    target platform to build cross compiler for\n"
 	printf "                                  (defaults to $TARGETARCH)\n"
 	printf "    [-l|--languages <languages>]  comma separated list of target languages\n"
-	printf "                                  (defaults to $LANGUAGES)\n"
+	printf "                                  (defaults to $DEFAULT_LANGUAGES)\n"
 	printf "GDB specific options:\n"
 	printf "    [-p|--platform <platform>]    target platform to build cross compiler for\n"
 	printf "                                  (defaults to $TARGETARCH)\n"
@@ -442,8 +497,8 @@ have_hostcflags_from_gmp() {
 set_hostcflags_from_gmp() {
 	# Now set CFLAGS to match GMP CFLAGS but strip out -pedantic
 	# as GCC 4.6.x fails if it's there.
-	export HOSTCFLAGS=$(grep __GMP_CFLAGS $DESTDIR$TARGETDIR/include/gmp.h |cut -d\" -f2 |\
-	    sed s,-pedantic,,)
+	export HOSTCFLAGS="$(grep __GMP_CFLAGS $DESTDIR$TARGETDIR/include/gmp.h |cut -d\" -f2 |\
+	    sed s,-pedantic,,)"
 }
 
 build_GMP() {
@@ -690,15 +745,17 @@ getopt - > /dev/null 2>/dev/null || gcc -o getopt getopt.c
 getoptbrand="$(getopt -V | sed -e '1!d' -e 's,^\(......\).*,\1,')"
 if [ "${getoptbrand}" = "getopt" ]; then
 	# Detected GNU getopt that supports long options.
-	args=$(getopt -l version,help,clean,directory:,bootstrap,platform:,languages:,package:,jobs:,destdir:,savetemps,scripting,ccache,supported: Vhcd:bp:l:P:j:D:tSys: -- "$@")
-	eval set "$args"
+	args=$(getopt -l version,help,clean,directory:,bootstrap,platform:,languages:,package:,jobs:,destdir:,savetemps,scripting,ccache,supported:,urls,nocolor -o Vhcd:bp:l:P:j:D:tSys:un -- "$@")
+	getopt_ret=$?
+	eval set -- "$args"
 else
 	# Detected non-GNU getopt
-	args=$(getopt Vhcd:bp:l:P:j:D:tSys: $*)
+	args=$(getopt Vhcd:bp:l:P:j:D:tSys:un $*)
+	getopt_ret=$?
 	set -- $args
 fi
 
-if [ $? != 0 ]; then
+if [ $getopt_ret != 0 ]; then
 	myhelp
 	exit 1
 fi
@@ -719,14 +776,19 @@ while true ; do
 		-S|--scripting) shift; SKIPPYTHON=0;;
 		-y|--ccache)	shift; USECCACHE=1;;
 		-s|--supported) shift; PRINTSTABLE="$1"; shift;;
-		   --urls)	shift; printf "%s\n" "$ALL_ARCHIVES"; exit 0;;
-		   --nocolor)	shift; \
+		-u|--urls)	shift; printf "%s\n" "$ALL_ARCHIVES"; exit 0;;
+		-n|--nocolor)	shift; \
 			unset red RED green GREEN blue BLUE cyan CYAN NC;;
 		--)		shift; break;;
-		-*)		printf "Invalid option\n\n"; myhelp; exit 1;;
 		*)		break;;
 	esac
 done
+
+if [ $# -gt 0 ]; then
+	printf "Excessive arguments: $*\n"
+	myhelp
+	exit 1
+fi
 
 if [ -n "$PRINTSTABLE" ]; then
 	print_stable
@@ -809,6 +871,9 @@ searchtool bzip2 "bzip2," > /dev/null
 
 check_for_library "-lz" "zlib (zlib1g-dev or zlib-devel)"
 
+CC=cc
+check_cc
+
 if [ "$HALT_FOR_TOOLS" -ne 0 ]; then
 	exit 1
 fi
@@ -821,7 +886,6 @@ fi
 
 # Set up host compiler and flags needed for various OSes
 
-CC=cc
 if is_package_enabled "GCC"; then
 if [ $UNAME = "Darwin" ]; then
 	#GCC_OPTIONS="$GCC_OPTIONS --enable-threads=posix"
@@ -853,6 +917,16 @@ elif [ $UNAME = "NetBSD" ]; then
 	# same for NetBSD but this one reports an i386
 	if [ "$(uname -m 2>/dev/null)" = "i386" ]; then
 		OPTIONS="ABI=32"
+	fi
+fi
+if [ -z "${LANGUAGES}" ]; then
+	if hostcc_has_gnat1 && \
+		[ "$(hostcc_version)" = "$(buildcc_version)" -o "${BOOTSTRAP}" = "1" ];
+	then
+		printf "\nFound compatible Ada compiler, enabling Ada support by default.\n\n"
+		LANGUAGES="ada,${DEFAULT_LANGUAGES}"
+	else
+		LANGUAGES="${DEFAULT_LANGUAGES}"
 	fi
 fi
 fi # GCC

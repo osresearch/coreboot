@@ -29,9 +29,9 @@
 /* Single CPU system? */
 #if (CONFIG_MAX_PHYSICAL_CPUS == 1)
 	/* FIXME
-         * This #define is used by other #included .c files
+	 * This #define is used by other #included .c files
 	 * When set, multiprocessor support is completely disabled
-         */
+	 */
 	#define HT_BUILD_NC_ONLY 1
 #endif
 
@@ -69,7 +69,7 @@
 
 static  u32 get_nodes(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	u32 nodes;
 
 	dev = PCI_DEV(CONFIG_CBB, CONFIG_CDB, 0);
