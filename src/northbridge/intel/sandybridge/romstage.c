@@ -65,6 +65,15 @@ void mainboard_romstage_entry(unsigned long bist)
 
 	pch_enable_lpc();
 
+	/* Enable GPIOs */
+	pci_write_config32(PCH_LPC_DEV, GPIO_BASE, DEFAULT_GPIOBASE|1);
+	pci_write_config8(PCH_LPC_DEV, GPIO_CNTL, 0x10);
+
+	setup_pch_gpios(&mainboard_gpio_map);
+
+	/* Initialize superio */
+	mainboard_config_superio();
+
 	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && IS_ENABLED(CONFIG_LPC_TPM)) {
 		// we don't know if we are coming out of a resume
 		// at this point, but want to setup the tpm ASAP
@@ -76,15 +85,6 @@ void mainboard_romstage_entry(unsigned long bist)
 		extern char _romstage, _eromstage;
 		tlcl_measure(1, &_romstage, &_eromstage - &_romstage);
 	}
-
-	/* Enable GPIOs */
-	pci_write_config32(PCH_LPC_DEV, GPIO_BASE, DEFAULT_GPIOBASE|1);
-	pci_write_config8(PCH_LPC_DEV, GPIO_CNTL, 0x10);
-
-	setup_pch_gpios(&mainboard_gpio_map);
-
-	/* Initialize superio */
-	mainboard_config_superio();
 
 	/* USB is inited in MRC if MRC is used.  */
 	if (CONFIG_USE_NATIVE_RAMINIT) {
