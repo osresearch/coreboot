@@ -27,11 +27,22 @@
 
 #define ACPI_PMIO_BASE			0x400
 #define ACPI_PMIO_SIZE			0x100
-#define  R_ACPI_PM1_TMR			0x8
+#define R_ACPI_PM1_TMR			0x8
+
+/* CST Range (R/W) IO port block size */
+#define PMG_IO_BASE_CST_RNG_BLK_SIZE	0x5
+/* ACPI PMIO Offset to C-state register*/
+#define ACPI_PMIO_CST_REG	(ACPI_PMIO_BASE + 0x14)
 
 /* Accesses to these BARs are hardcoded in FSP */
 #define PMC_BAR0			0xfe042000
 #define PMC_BAR1			0xfe044000
+#define PMC_BAR0_SIZE			(8 * KiB)
+
+#define PMC_SRAM_BASE_0			0xfe900000
+#define PMC_SRAM_SIZE_0			(8 * KiB)
+#define PMC_SRAM_BASE_1			0xfe902000
+#define PMC_SRAM_SIZE_1			(4 * KiB)
 
 /* Temporary BAR for SPI until PCI enumeration assigns a BAR in ramstage. */
 #define PRERAM_SPI_BASE_ADDRESS		0xfe010000

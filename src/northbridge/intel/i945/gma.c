@@ -26,6 +26,7 @@
 #include <string.h>
 #include <pc80/vga.h>
 #include <pc80/vga_io.h>
+#include <commonlib/helpers.h>
 
 #include "i945.h"
 #include "chip.h"
@@ -43,7 +44,7 @@
 #define PGETBL_CTL	0x2020
 #define PGETBL_ENABLED	0x00000001
 
-#define BASE_FREQUENCY 120000
+#define BASE_FREQUENCY 100000
 
 #if CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT
 
@@ -76,7 +77,7 @@ static int gtt_setup(void *mmiobase)
 	return 0;
 }
 
-static int intel_gma_init(struct northbridge_intel_i945_config *conf,
+static int intel_gma_init_lvds(struct northbridge_intel_i945_config *conf,
 			  unsigned int pphysbase, unsigned int piobase,
 			  void *pmmio, unsigned int pgfx)
 {
@@ -85,10 +86,10 @@ static int intel_gma_init(struct northbridge_intel_i945_config *conf,
 	u8 edid_data[128];
 	unsigned long temp;
 	int hpolarity, vpolarity;
-	u32 candp1, candn;
-	u32 best_delta = 0xffffffff;
+	u32 smallest_err = 0xffffffff;
 	u32 target_frequency;
 	u32 pixel_p1 = 1;
+	u32 pixel_p2;
 	u32 pixel_n = 1;
 	u32 pixel_m1 = 1;
 	u32 pixel_m2 = 1;
@@ -102,7 +103,8 @@ static int intel_gma_init(struct northbridge_intel_i945_config *conf,
 	       "i915lightup: graphics %p mmio %p addrport %04x physbase %08x\n",
 	       (void *)pgfx, pmmio, piobase, pphysbase);
 
-	intel_gmbus_read_edid(pmmio + GMBUS0, 3, 0x50, edid_data, 128);
+	intel_gmbus_read_edid(pmmio + GMBUS0, 3, 0x50, edid_data,
+			sizeof(edid_data));
 	decode_edid(edid_data, sizeof(edid_data), &edid);
 	mode = &edid.mode;
 
@@ -158,43 +160,39 @@ static int intel_gma_init(struct northbridge_intel_i945_config *conf,
 	write32(pmmio + PORT_HOTPLUG_EN, conf->gpu_hotplug);
 	write32(pmmio + INSTPM, 0x08000000 | INSTPM_AGPBUSY_DIS);
 
-	target_frequency = mode->lvds_dual_channel ? mode->pixel_clock
-		: (2 * mode->pixel_clock);
+	/* p2 divisor must 7 for dual channel LVDS */
+	/* and 14 for single channel LVDS */
+	pixel_p2 = mode->lvds_dual_channel ? 7 : 14;
+	target_frequency = mode->pixel_clock;
 
-	/* Find suitable divisors.  */
-	for (candp1 = 1; candp1 <= 8; candp1++) {
-		for (candn = 5; candn <= 10; candn++) {
-			u32 cur_frequency;
-			u32 m; /* 77 - 131.  */
-			u32 denom; /* 35 - 560.  */
-			u32 current_delta;
-
-			denom = candn * candp1 * 7;
-			/* Doesnt overflow for up to
-			   5000000 kHz = 5 GHz.  */
-			m = (target_frequency * denom
-			     + BASE_FREQUENCY / 2) / BASE_FREQUENCY;
-
-			if (m < 77 || m > 131)
-				continue;
-
-			cur_frequency = (BASE_FREQUENCY * m) / denom;
-			if (target_frequency > cur_frequency)
-				current_delta = target_frequency - cur_frequency;
-			else
-				current_delta = cur_frequency - target_frequency;
-
-			if (best_delta > current_delta) {
-				best_delta = current_delta;
-				pixel_n = candn;
-				pixel_p1 = candp1;
-				pixel_m2 = ((m + 3) % 5) + 7;
-				pixel_m1 = (m - pixel_m2) / 5;
+	/* Find suitable divisors, m1, m2, p1, n.  */
+	/* refclock * (5 * (m1 + 2) + (m1 + 2)) / (n + 2) / p1 / p2 */
+	/* should be closest to target frequency as possible */
+	u32 candn, candm1, candm2, candp1;
+	for (candm1 = 8; candm1 <= 18; candm1++) {
+		for (candm2 = 3; candm2 <= 7; candm2++) {
+			for (candn = 1; candn <= 6; candn++) {
+				for (candp1 = 1; candp1 <= 8; candp1++) {
+					u32 m = 5 * (candm1 + 2) + (candm2 + 2);
+					u32 p = candp1 * pixel_p2;
+					u32 vco = DIV_ROUND_CLOSEST(BASE_FREQUENCY * m, candn + 2);
+					u32 dot = DIV_ROUND_CLOSEST(vco, p);
+					u32 this_err = ABS(dot - target_frequency);
+					if ((m < 70) || (m > 120))
+						continue;
+					if (this_err < smallest_err) {
+						smallest_err = this_err;
+						pixel_n = candn;
+						pixel_m1 = candm1;
+						pixel_m2 = candm2;
+						pixel_p1 = candp1;
+					}
+				}
 			}
 		}
 	}
 
-	if (best_delta == 0xffffffff) {
+	if (smallest_err == 0xffffffff) {
 		printk (BIOS_ERR, "Couldn't find GFX clock divisors\n");
 		return -1;
 	}
@@ -216,8 +214,8 @@ static int intel_gma_init(struct northbridge_intel_i945_config *conf,
 	printk(BIOS_DEBUG, "Pixel N=%d, M1=%d, M2=%d, P1=%d\n",
 	       pixel_n, pixel_m1, pixel_m2, pixel_p1);
 	printk(BIOS_DEBUG, "Pixel clock %d kHz\n",
-	       BASE_FREQUENCY * (5 * pixel_m1 + pixel_m2) / pixel_n
-	       / (pixel_p1 * 7));
+	       BASE_FREQUENCY * (5 * (pixel_m1 + 2) + (pixel_m2 + 2)) /
+	       (pixel_n + 2) / (pixel_p1 * pixel_p2));
 
 #if !IS_ENABLED(CONFIG_FRAMEBUFFER_KEEP_VESA_MODE)
 	write32(pmmio + PF_WIN_SZ(0), vactive | (hactive << 16));
@@ -242,8 +240,8 @@ static int intel_gma_init(struct northbridge_intel_i945_config *conf,
 	write32(pmmio + PP_CONTROL, PANEL_UNLOCK_REGS
 		| (read32(pmmio + PP_CONTROL) & ~PANEL_UNLOCK_MASK));
 	write32(pmmio + FP0(1),
-		((pixel_n - 2) << 16)
-		| ((pixel_m1 - 2) << 8) | pixel_m2);
+		(pixel_n << 16)
+		| (pixel_m1 << 8) | pixel_m2);
 	write32(pmmio + DPLL(1),
 		DPLL_VGA_MODE_DIS |
 		DPLL_VCO_ENABLE | DPLLB_MODE_LVDS
@@ -252,8 +250,7 @@ static int intel_gma_init(struct northbridge_intel_i945_config *conf,
 		| (conf->gpu_lvds_use_spread_spectrum_clock
 		   ? DPLL_INTEGRATED_CLOCK_VLV | DPLL_INTEGRATED_CRI_CLK_VLV
 		   : 0)
-		| (pixel_p1 << 16)
-		| (pixel_p1));
+		| (0x10000 << (pixel_p1 - 1)));
 	mdelay(1);
 	write32(pmmio + DPLL(1),
 		DPLL_VGA_MODE_DIS |
@@ -261,8 +258,7 @@ static int intel_gma_init(struct northbridge_intel_i945_config *conf,
 		| (mode->lvds_dual_channel ? DPLLB_LVDS_P2_CLOCK_DIV_7
 		   : DPLLB_LVDS_P2_CLOCK_DIV_14)
 		| ((conf->gpu_lvds_use_spread_spectrum_clock ? 3 : 0) << 13)
-		| (pixel_p1 << 16)
-		| (pixel_p1));
+		| (0x10000 << (pixel_p1 - 1)));
 	mdelay(1);
 	write32(pmmio + HTOTAL(1),
 		((hactive + right_border + hblank - 1) << 16)
@@ -279,7 +275,7 @@ static int intel_gma_init(struct northbridge_intel_i945_config *conf,
 	write32(pmmio + VBLANK(1), ((vactive + bottom_border + vblank - 1) << 16)
 		| (vactive + bottom_border - 1));
 	write32(pmmio + VSYNC(1),
-		(vactive + bottom_border + vfront_porch + vsync - 1)
+		((vactive + bottom_border + vfront_porch + vsync - 1) << 16)
 		| (vactive + bottom_border + vfront_porch - 1));
 
 #if !IS_ENABLED(CONFIG_FRAMEBUFFER_KEEP_VESA_MODE)
@@ -388,6 +384,196 @@ static int intel_gma_init(struct northbridge_intel_i945_config *conf,
 #endif
 	return 0;
 }
+
+static int intel_gma_init_vga(struct northbridge_intel_i945_config *conf,
+			  unsigned int pphysbase, unsigned int piobase,
+			  void *pmmio, unsigned int pgfx)
+{
+	int i;
+	u32 hactive, vactive;
+	u16 reg16;
+	u32 uma_size;
+
+	printk(BIOS_SPEW, "pmmio %x addrport %x physbase %x\n",
+		(u32)pmmio, piobase, pphysbase);
+
+	gtt_setup(pmmio);
+
+	/* Disable VGA.  */
+	write32(pmmio + VGACNTRL, VGA_DISP_DISABLE);
+
+	/* Disable pipes.  */
+	write32(pmmio + PIPECONF(0), 0);
+	write32(pmmio + PIPECONF(1), 0);
+
+	write32(pmmio + INSTPM, 0x800);
+
+	vga_gr_write(0x18, 0);
+
+	write32(pmmio + VGA0, 0x200074);
+	write32(pmmio + VGA1, 0x200074);
+
+	write32(pmmio + DSPFW3, 0x7f3f00c1 & ~PINEVIEW_SELF_REFRESH_EN);
+	write32(pmmio + DSPCLK_GATE_D, 0);
+	write32(pmmio + FW_BLC, 0x03060106);
+	write32(pmmio + FW_BLC2, 0x00000306);
+
+	write32(pmmio + ADPA, ADPA_DAC_ENABLE
+			| ADPA_PIPE_A_SELECT
+			| ADPA_USE_VGA_HVPOLARITY
+			| ADPA_VSYNC_CNTL_ENABLE
+			| ADPA_HSYNC_CNTL_ENABLE
+			| ADPA_DPMS_ON
+			);
+
+	write32(pmmio + 0x7041c, 0x0);
+
+	write32(pmmio + DPLL_MD(0), 0x3);
+	write32(pmmio + DPLL_MD(1), 0x3);
+	write32(pmmio + DSPCNTR(1), 0x1000000);
+	write32(pmmio + PIPESRC(1), 0x027f01df);
+
+	vga_misc_write(0x67);
+	const u8 cr[] = { 0x5f, 0x4f, 0x50, 0x82, 0x55, 0x81, 0xbf, 0x1f,
+		    0x00, 0x4f, 0x0d, 0x0e, 0x00, 0x00, 0x00, 0x00,
+		    0x9c, 0x8e, 0x8f, 0x28, 0x1f, 0x96, 0xb9, 0xa3,
+		    0xff
+	};
+	vga_cr_write(0x11, 0);
+
+	for (i = 0; i <= 0x18; i++)
+		vga_cr_write(i, cr[i]);
+
+	// Disable screen memory to prevent garbage from appearing.
+	vga_sr_write(1, vga_sr_read(1) | 0x20);
+	hactive = 640;
+	vactive = 400;
+
+	mdelay(1);
+	write32(pmmio + DPLL(0),
+		DPLL_VCO_ENABLE | DPLLB_MODE_DAC_SERIAL
+		| DPLL_VGA_MODE_DIS
+		| DPLL_DAC_SERIAL_P2_CLOCK_DIV_10
+		| 0x400601
+		);
+	mdelay(1);
+	write32(pmmio + DPLL(0),
+		DPLL_VCO_ENABLE | DPLLB_MODE_DAC_SERIAL
+		| DPLL_VGA_MODE_DIS
+		| DPLL_DAC_SERIAL_P2_CLOCK_DIV_10
+		| 0x400601
+		);
+
+	write32(pmmio + ADPA, ADPA_DAC_ENABLE
+			| ADPA_PIPE_A_SELECT
+			| ADPA_USE_VGA_HVPOLARITY
+			| ADPA_VSYNC_CNTL_ENABLE
+			| ADPA_HSYNC_CNTL_ENABLE
+			| ADPA_DPMS_ON
+			);
+
+	write32(pmmio + HTOTAL(0),
+		((hactive - 1) << 16)
+		| (hactive - 1));
+	write32(pmmio + HBLANK(0),
+		((hactive - 1) << 16)
+		| (hactive - 1));
+	write32(pmmio + HSYNC(0),
+		((hactive - 1) << 16)
+		| (hactive - 1));
+
+	write32(pmmio + VTOTAL(0), ((vactive - 1) << 16)
+		| (vactive - 1));
+	write32(pmmio + VBLANK(0), ((vactive - 1) << 16)
+		| (vactive - 1));
+	write32(pmmio + VSYNC(0),
+		((vactive - 1) << 16)
+		| (vactive - 1));
+
+	write32(pmmio + PF_WIN_POS(0), 0);
+
+	write32(pmmio + PIPESRC(0), (639 << 16) | 399);
+	write32(pmmio + PF_CTL(0),PF_ENABLE | PF_FILTER_MED_3x3);
+	write32(pmmio + PF_WIN_SZ(0), vactive | (hactive << 16));
+	write32(pmmio + PFIT_CONTROL, 0x0);
+
+	mdelay(1);
+
+	write32(pmmio + FDI_RX_CTL(0), 0x00002040);
+	mdelay(1);
+	write32(pmmio + FDI_RX_CTL(0), 0x80002050);
+	write32(pmmio + FDI_TX_CTL(0), 0x00044000);
+	mdelay(1);
+	write32(pmmio + FDI_TX_CTL(0), 0x80044000);
+	write32(pmmio + PIPECONF(0), PIPECONF_ENABLE | PIPECONF_BPP_6 | PIPECONF_DITHER_EN);
+
+	write32(pmmio + VGACNTRL, 0x0);
+	write32(pmmio + DSPCNTR(0), DISPLAY_PLANE_ENABLE | DISPPLANE_BGRX888);
+	mdelay(1);
+
+	write32(pmmio + ADPA, ADPA_DAC_ENABLE
+			| ADPA_PIPE_A_SELECT
+			| ADPA_USE_VGA_HVPOLARITY
+			| ADPA_VSYNC_CNTL_ENABLE
+			| ADPA_HSYNC_CNTL_ENABLE
+			| ADPA_DPMS_ON
+			);
+
+	write32(pmmio + DSPFW3, 0x7f3f00c1);
+	write32(pmmio + MI_MODE, 0x200 | VS_TIMER_DISPATCH);
+	write32(pmmio + CACHE_MODE_0, (0x6820 | (1 << 9)) & ~(1 << 5));
+	write32(pmmio + CACHE_MODE_1, 0x380 & ~(1 << 9));
+
+	/* Set up GTT.  */
+
+	reg16 = pci_read_config16(dev_find_slot(0, PCI_DEVFN(0, 0)), GGC);
+	uma_size = 0;
+	if (!(reg16 & 2)) {
+		uma_size = decode_igd_memory_size((reg16 >> 4) & 7);
+		printk(BIOS_DEBUG, "%dM UMA\n", uma_size >> 10);
+	}
+
+	for (i = 0; i < (uma_size - 256) / 4; i++)
+	{
+		outl((i << 2) | 1, piobase);
+		outl(pphysbase + (i << 12) + 1, piobase + 4);
+	}
+
+	/* Clear interrupts. */
+	write32(pmmio + DEIIR, 0xffffffff);
+	write32(pmmio + SDEIIR, 0xffffffff);
+	write32(pmmio + IIR, 0xffffffff);
+	write32(pmmio + IMR, 0xffffffff);
+	write32(pmmio + EIR, 0xffffffff);
+
+	vga_textmode_init();
+
+	/* Enable screen memory.  */
+	vga_sr_write(1, vga_sr_read(1) & ~0x20);
+
+	return 0;
+
+}
+
+/* compare the header of the vga edid header */
+/* if vga is not connected it should have a correct header */
+static int probe_edid(u8 *pmmio, u8 slave)
+{
+	u8 vga_edid[128];
+	u8 header[8] = {0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00};
+	intel_gmbus_read_edid(pmmio + GMBUS0, slave, 0x50, vga_edid, 128);
+	intel_gmbus_stop(pmmio + GMBUS0);
+	for (int i = 0; i < 8; i++) {
+		if (vga_edid[i] != header[i]) {
+			printk(BIOS_DEBUG, "No display connected on slave %d\n",
+				slave);
+			return 0;
+		}
+	}
+	printk(BIOS_SPEW, "Found a display on slave %d\n", slave);
+	return 1;
+}
+
 #endif
 
 static void gma_func0_init(struct device *dev)
@@ -429,10 +615,25 @@ static void gma_func0_init(struct device *dev)
 	);
 
 	int err;
-	err = intel_gma_init(conf, pci_read_config32(dev, 0x5c) & ~0xf,
+	/* probe if VGA is connected and alway run */
+	/* VGA init if no LVDS is connected */
+	if (!probe_edid(mmiobase, 3) || probe_edid(mmiobase, 2))
+		err = intel_gma_init_vga(conf, pci_read_config32(dev, 0x5c) & ~0xf,
+					iobase, mmiobase, graphics_base);
+	else
+		err = intel_gma_init_lvds(conf, pci_read_config32(dev, 0x5c) & ~0xf,
 			     iobase, mmiobase, graphics_base);
 	if (err == 0)
 		gfx_set_init_done(1);
+	/* Linux relies on VBT for panel info.  */
+	if (CONFIG_NORTHBRIDGE_INTEL_SUBTYPE_I945GM) {
+		generate_fake_intel_oprom(&conf->gfx, dev,
+			"$VBT CALISTOGA");
+	}
+	if (CONFIG_NORTHBRIDGE_INTEL_SUBTYPE_I945GC) {
+		generate_fake_intel_oprom(&conf->gfx, dev,
+			"$VBT LAKEPORT-G");
+	}
 #endif
 }
 
@@ -530,7 +731,7 @@ static struct device_operations gma_func1_ops = {
 	.ops_pci		= &gma_pci_ops,
 };
 
-static const unsigned short pci_device_ids[] = { 0x27a2, 0x27ae, 0 };
+static const unsigned short pci_device_ids[] = { 0x27a2, 0x27ae, 0x2772, 0 };
 
 static const struct pci_driver i945_gma_func0_driver __pci_driver = {
 	.ops	= &gma_func0_ops,
