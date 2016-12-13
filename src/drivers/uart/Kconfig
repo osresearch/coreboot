@@ -9,6 +9,10 @@ config DRIVERS_UART_8250IO
 	default n if NO_UART_ON_SUPERIO
 	default y if ARCH_X86
 
+config DRIVERS_UART_8250IO_SKIP_INIT
+	def_bool n
+	depends on DRIVERS_UART_8250IO
+
 # Select this for mainboard without SuperIO serial port.
 config NO_UART_ON_SUPERIO
 	def_bool n
@@ -65,7 +69,7 @@ config UART_USE_REFCLK_AS_INPUT_CLOCK
 
 config UART_PCI_ADDR
 	hex "UART's PCI bus, device, function address"
-	default 0
+	default 0x0
 	help
 	  Specify zero if the UART is connected to another bus type.
 	  For PCI based UARTs, build the value as:

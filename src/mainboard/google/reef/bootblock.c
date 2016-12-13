@@ -15,11 +15,10 @@
 
 #include <baseboard/variants.h>
 #include <bootblock_common.h>
+#include <ec/ec.h>
 #include <soc/lpc.h>
 #include <soc/gpio.h>
 #include <variant/ec.h>
-
-void mainboard_ec_init(void);
 
 void bootblock_mainboard_init(void)
 {
